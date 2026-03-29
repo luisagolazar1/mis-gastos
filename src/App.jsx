@@ -10,7 +10,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const monthOf = (d) => d.slice(0, 7);
 const currentMonth = () => today().slice(0, 7);
 
-const DEFAULT_CATS = [
+const DEFAULT_Categorías = [
   { id: 1, name: "Comida", color: PALETTE[0], icon: "🍔" },
   { id: 2, name: "Transporte", color: PALETTE[1], icon: "🚌" },
   { id: 3, name: "Entretenimiento", color: PALETTE[2], icon: "🎬" },
@@ -122,21 +122,21 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
 
 // ── Category Manager Modal ─────────────────────────────────────────────
 function CatModal({ categories, onChange, onClose }) {
-  const [cats, setCats] = useState(categories);
+  const [Categorías, setCategorías] = useState(categories);
   const [newName, setNewName] = useState(""); const [newIcon, setNewIcon] = useState("💰");
   const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾"];
   const add = () => {
     if (!newName.trim()) return;
-    const used = cats.map(c=>c.color);
-    const color = PALETTE.find(p=>!used.includes(p)) || PALETTE[cats.length % PALETTE.length];
-    setCats(c=>[...c,{ id: Date.now(), name: newName.trim(), icon: newIcon, color }]);
+    const used = Categorías.map(c=>c.color);
+    const color = PALETTE.find(p=>!used.includes(p)) || PALETTE[Categorías.length % PALETTE.length];
+    setCategorías(c=>[...c,{ id: Date.now(), name: newName.trim(), icon: newIcon, color }]);
     setNewName("");
   };
-  const del = (id) => setCats(c=>c.filter(x=>x.id!==id));
+  const del = (id) => setCategorías(c=>c.filter(x=>x.id!==id));
   return (
     <Modal title="🏷️ Categorías" onClose={onClose}>
       <div style={{ maxHeight:220, overflowY:"auto", marginBottom:16 }}>
-        {cats.map(c=>(
+        {Categorías.map(c=>(
           <div key={c.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #1e2840" }}>
             <span style={{ width:20, height:20, borderRadius:4, background:c.color, display:"inline-block" }}/>
             <span style={{ fontSize:18 }}>{c.icon}</span>
@@ -155,7 +155,7 @@ function CatModal({ categories, onChange, onClose }) {
       </div>
       <div style={{ display:"flex", gap:10 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex:1 }}>Cancelar</Btn>
-        <Btn onClick={()=>{ onChange(cats); onClose(); }} style={{ flex:1 }}>Guardar</Btn>
+        <Btn onClick={()=>{ onChange(Categorías); onClose(); }} style={{ flex:1 }}>Guardar</Btn>
       </div>
     </Modal>
   );
@@ -176,7 +176,7 @@ function CTooltip({ active, payload, label }) {
 function CategoryTreemap({ categories, monthExp, catMap, total }) {
   const [hovered, setHovered] = useState(null);
 
-  // Compute spending per category (include ALL cats, even $0)
+  // Compute spending per category (include ALL Categorías, even $0)
   const data = useMemo(() => {
     return categories.map(c => {
       const spent = monthExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0);
@@ -198,7 +198,7 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
     const totalSpent = data.reduce((s, d) => s + d.spent, 0);
     return data.map(d => {
       const pct = totalSpent > 0 ? d.spent / totalSpent : 1 / data.length;
-      const minPct = 0.03; // minimum 3% so empty cats show as tiny tile
+      const minPct = 0.03; // minimum 3% so empty Categorías show as tiny tile
       const effectivePct = totalSpent > 0 ? Math.max(pct, d.spent > 0 ? pct : minPct * 0.5) : 1 / data.length;
       return { ...d, pct: totalSpent > 0 ? pct : 1 / data.length, effectivePct };
     });
@@ -329,9 +329,9 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
 // ── Main App ───────────────────────────────────────────────────────────
 export default function App() {
   const [expenses, setExpenses]   = useState(SEED_EXPENSES);
-  const [categories, setCategories] = useState(DEFAULT_CATS);
+  const [categories, setCategories] = useState(DEFAULT_Categorías);
   const [budgets, setBudgets]     = useState({});
-  const [modal, setModal]         = useState(null); // "add"|"budget"|"cats"
+  const [modal, setModal]         = useState(null); // "add"|"budget"|"Categorías"
   const [view, setView]           = useState("dashboard"); // "dashboard"|"history"
   const [filterMonth, setFilterMonth] = useState(currentMonth());
 
@@ -347,7 +347,7 @@ export default function App() {
   },[]);
 
   const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(()=>{}); };
-  const saveCats     = (data) => { setCategories(data); storage.set("categories", JSON.stringify(data)).catch(()=>{}); };
+  const saveCategorías     = (data) => { setCategories(data); storage.set("categories", JSON.stringify(data)).catch(()=>{}); };
   const saveBudgets  = (data) => { setBudgets(data); storage.set("budgets", JSON.stringify(data)).catch(()=>{}); };
 
   const addExpense = (exp) => saveExpenses([...expenses, exp]);
@@ -402,7 +402,7 @@ export default function App() {
           <span style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, fontSize:16, color:"#34d399" }}>MIS GASTOS</span>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("cats")}>🏷️ Cats</Btn>
+          <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("Categorías")}>🏷️ Categorías</Btn>
           <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("budget")}>🎯 Ppto</Btn>
           <Btn style={{ padding:"7px 16px", fontSize:13 }} onClick={()=>setModal("add")}>+ Gasto</Btn>
         </div>
@@ -603,7 +603,7 @@ export default function App() {
       {/* Modals */}
       {modal==="add"    && <AddExpenseModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
       {modal==="budget" && <BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={()=>setModal(null)}/>}
-      {modal==="cats"   && <CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
+      {modal==="Categorías"   && <CatModal categories={categories} onChange={saveCategorías} onClose={()=>setModal(null)}/>}
     </div>
   );
 }
