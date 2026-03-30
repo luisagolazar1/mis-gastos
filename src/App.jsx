@@ -4,23 +4,24 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 
 // ── Design tokens ─────────────────────────────────────────────────────
 const T = {
-  bg:       "#eef5ee",
-  surface:  "#ffffff",
-  border:   "#e8ede8",
-  text:     "#1a1f1a",
-  muted:    "#6b7b6b",
-  subtle:   "#a8b8a8",
-  accent:   "#2d7a4f",
-  accentLt: "#e8f4ee",
-  accentMd: "#4caf7d",
-  warn:     "#e05c5c",
-  warnLt:   "#fdf0f0",
-  orange:   "#e07a2d",
-  shadow:   "0 2px 12px rgba(45,122,79,.08)",
-  shadowLg: "0 8px 32px rgba(45,122,79,.12)",
+  bg:       "#c8e6c8",
+  surface:  "#e8f5e8",
+  border:   "#a5d0a5",
+  text:     "#1a3a1a",
+  muted:    "#4a7a4a",
+  subtle:   "#7aaa7a",
+  accent:   "#2d6a2d",
+  accentLt: "#d4ead4",
+  accentMd: "#4a9a4a",
+  warn:     "#c0392b",
+  warnLt:   "#fdecea",
+  orange:   "#d35400",
+  yellow:   "#f4c430",
+  shadow:   "0 2px 12px rgba(45,106,45,.12)",
+  shadowLg: "0 8px 32px rgba(45,106,45,.18)",
 };
 
-const PALETTE = ["#2d7a4f","#4caf7d","#88cba4","#1a5c3a","#6dbf90","#a8d8bc","#34936b","#b8e0ca","#0f3d28","#72c499"];
+const PALETTE = ["#e74c3c","#3498db","#f39c12","#9b59b6","#1abc9c","#e67e22","#2ecc71","#e91e63","#00bcd4","#ff5722"];
 
 const fmt = (n) => new Intl.NumberFormat("es-AR", { style:"currency", currency:"ARS", maximumFractionDigits:0 }).format(n);
 const today = () => new Date().toISOString().slice(0,10);
@@ -527,20 +528,20 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
       {/* Header */}
-      <div style={{ background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:64,boxShadow:"0 1px 0 #e8ede8" }}>
+      <div style={{ background:T.accent,borderBottom:`1px solid ${T.border}`,padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:68 }}>
         <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-          <div style={{ width:32,height:32,borderRadius:10,background:T.accentLt,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18 }}>💸</div>
-          <span style={{ fontWeight:700,fontSize:17,color:T.text,letterSpacing:"-.3px" }}>Mis Gastos</span>
+          <span style={{ fontSize:32 }}>💸</span>
+          <span style={{ fontWeight:800,fontSize:20,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
         </div>
         <div style={{ display:"flex",gap:8 }}>
-          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13 }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
-          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13 }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
-          <Btn style={{ padding:"8px 16px",fontSize:13 }} onClick={()=>setModal("add")}>+ Gastos</Btn>
+          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
+          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
+          <Btn style={{ padding:"8px 16px",fontSize:13,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
 
       {/* Nav */}
-      <div style={{ background:T.surface,display:"flex",borderBottom:`1px solid ${T.border}`,padding:"0 28px",flexWrap:"wrap" }}>
+      <div style={{ background:T.accentLt,display:"flex",borderBottom:`1px solid ${T.border}`,padding:"0 28px",flexWrap:"wrap" }}>
         {[["dashboard","Dashboard"],["history","Historial"],["shopping","Lista de compras"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)} style={navStyle(v)}>{l}</button>
         ))}
@@ -588,9 +589,9 @@ export default function App() {
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:20 }}>
               {[
                 {label:"Gastado este mes",val:fmt(totalMonth),color:T.accent,bg:T.accentLt},
-                {label:"Presupuesto",val:budgetTotal>0?fmt(budgetTotal):"Sin límite",color:"#1a6b8a",bg:"#e8f4f8"},
-                {label:"Disponible",val:budgetTotal>0?fmt(Math.max(budgetTotal-totalMonth,0)):"—",color:overBudget?T.warn:T.accent,bg:overBudget?T.warnLt:T.accentLt},
-                {label:"Transacciones",val:monthExp.length,color:"#7c4a9e",bg:"#f5eeff"},
+                {label:"Presupuesto",val:budgetTotal>0?fmt(budgetTotal):"Sin límite",color:T.accent,bg:T.accentLt},
+                {label:"Disponible",val:budgetTotal>0?fmt(Math.max(budgetTotal-totalMonth,0)):"—",color:overBudget?T.warn:T.accentMd,bg:overBudget?T.warnLt:T.accentLt},
+                {label:"Transacciones",val:monthExp.length,color:T.accent,bg:T.accentLt},
               ].map((k,i)=>(
                 <div key={i} style={{ background:T.surface,borderRadius:18,padding:"20px 22px",boxShadow:T.shadow }}>
                   <p style={{ fontSize:11,color:T.muted,fontWeight:600,letterSpacing:.6,marginBottom:10,textTransform:"uppercase" }}>{k.label}</p>
