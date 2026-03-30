@@ -523,7 +523,7 @@ export default function App() {
   const navStyle=(v)=>({ background:"none",border:"none",borderBottom:view===v?`2px solid ${T.accent}`:"2px solid transparent",color:view===v?T.accent:T.muted,padding:"14px 18px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13,transition:"color .2s" });
 
   return (
-    <div style={{ minHeight:"100vh", background:`#eef5ee url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 34L0 84V50l28-16 28 16v34L28 100z' fill='none' stroke='%232d7a4f' stroke-opacity='0.08' stroke-width='1'/%3E%3C/svg%3E")`,fontFamily:"'Plus Jakarta Sans',sans-serif",color:T.text }}>
+    <div style={{ minHeight:"100vh", background:`#3d7a3d url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 66L0 50V16L28 0l28 16v34L28 66zm0 34L0 84V50l28-16 28 16v34L28 100z' fill='none' stroke='%2368b868' stroke-opacity='0.25' stroke-width='1'/%3E%3C/svg%3E")`,fontFamily:"'Plus Jakarta Sans',sans-serif",color:T.text }}>
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
       {/* Header */}
