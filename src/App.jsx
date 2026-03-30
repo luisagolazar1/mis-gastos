@@ -1,4 +1,4 @@
-import { storage } from "./storage.js";
+import { storage } from "./firebase.js";
 import { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
