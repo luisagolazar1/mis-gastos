@@ -235,7 +235,7 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
             // We use flex-grow so tiles share space proportionally
             const pctLabel = (d.pct * 100).toFixed(1);
             const showLabel = d.norm > 0.07;
-            const showAmt   = d.norm > 0.12;
+            const showAmt   = d.spent > 0;
 
             return (
               <div
