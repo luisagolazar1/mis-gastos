@@ -35,6 +35,8 @@ const getWeekRange = (offset=0) => {
   return { from:monday.toISOString().slice(0,10), to:sunday.toISOString().slice(0,10) };
 };
 const inRange = (date,from,to) => date>=from && date<=to;
+const currentYear = () => new Date().getFullYear().toString();
+const currentDay  = () => today();
 
 const exportCSV = (expenses,catMap) => {
   const rows=[["Fecha","Categoría","Subcategoría","Descripción","Monto"]];
@@ -483,6 +485,8 @@ export default function App() {
   const [filterMonth,setFilterMonth] = useState(currentMonth());
   const [filterMode,setFilterMode] = useState("month");
   const [weekOffset,setWeekOffset] = useState(0);
+  const [filterYear,setFilterYear]  = useState(currentYear());
+  const [filterDay,setFilterDay]    = useState(currentDay());
   const [selectedCat,setSelectedCat] = useState(null);
   const [editingExpense,setEditingExpense] = useState(null);
 
@@ -507,9 +511,11 @@ export default function App() {
   const catMap=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
   const weekRange=useMemo(()=>getWeekRange(weekOffset),[weekOffset]);
   const monthExp=useMemo(()=>{
-    if(filterMode==="week") return expenses.filter(e=>inRange(e.date,weekRange.from,weekRange.to));
+    if(filterMode==="week")  return expenses.filter(e=>inRange(e.date,weekRange.from,weekRange.to));
+    if(filterMode==="year")  return expenses.filter(e=>e.date.startsWith(filterYear));
+    if(filterMode==="day")   return expenses.filter(e=>e.date===filterDay);
     return expenses.filter(e=>monthOf(e.date)===filterMonth);
-  },[expenses,filterMonth,filterMode,weekRange]);
+  },[expenses,filterMonth,filterMode,weekRange,filterYear,filterDay]);
 
   const totalMonth =useMemo(()=>monthExp.reduce((s,e)=>s+e.amount,0),[monthExp]);
   const budgetTotal=Number(budgets.__total)||0;
@@ -520,6 +526,7 @@ export default function App() {
   const barData=useMemo(()=>{ const days=[]; const now=new Date(); for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); } return days.map(d=>({ day:d.slice(5),total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) })); },[expenses]);
   const catAlerts=useMemo(()=>categories.filter(c=>{ const limit=Number(budgets[c.id]); if(!limit) return false; const spent=monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return spent>=limit*0.9; }),[categories,budgets,monthExp]);
   const months=useMemo(()=>{ const set=new Set(expenses.map(e=>monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); },[expenses]);
+  const years=useMemo(()=>{ const set=new Set(expenses.map(e=>e.date.slice(0,4))); set.add(currentYear()); return [...set].sort().reverse(); },[expenses]);
 
   const navStyle=(v)=>({ background:"none",border:"none",borderBottom:view===v?`2px solid ${T.accent}`:"2px solid transparent",color:view===v?T.accent:T.muted,padding:"14px 18px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:13,transition:"color .2s" });
 
@@ -548,14 +555,23 @@ export default function App() {
         {view!=="shopping" && (
           <div style={{ marginLeft:"auto",display:"flex",alignItems:"center",gap:8,padding:"10px 0" }}>
             <div style={{ display:"flex",background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden" }}>
-              {[["month","Mes"],["week","Semana"]].map(([m,l])=>(
-                <button key={m} onClick={()=>setFilterMode(m)} style={{ background:filterMode===m?T.accent:"transparent",color:filterMode===m?"#fff":T.muted,border:"none",padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,transition:"background .2s" }}>{l}</button>
+              {[["day","Día"],["week","Semana"],["month","Mes"],["year","Año"]].map(([m,l])=>(
+                <button key={m} onClick={()=>setFilterMode(m)} style={{ background:filterMode===m?T.accent:"transparent",color:filterMode===m?"#fff":T.muted,border:"none",padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12,transition:"background .2s" }}>{l}</button>
               ))}
             </div>
             {filterMode==="month" && (
               <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{ background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"6px 12px",color:T.text,fontSize:12,fontFamily:"inherit" }}>
                 {months.map(m=><option key={m}>{m}</option>)}
               </select>
+            )}
+            {filterMode==="year" && (
+              <select value={filterYear} onChange={e=>setFilterYear(e.target.value)} style={{ background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"6px 12px",color:T.text,fontSize:12,fontFamily:"inherit" }}>
+                {years.map(y=><option key={y}>{y}</option>)}
+              </select>
+            )}
+            {filterMode==="day" && (
+              <input type="date" value={filterDay} onChange={e=>setFilterDay(e.target.value)}
+                style={{ background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"6px 12px",color:T.text,fontSize:12,fontFamily:"inherit",outline:"none" }}/>
             )}
             {filterMode==="week" && (
               <div style={{ display:"flex",alignItems:"center",gap:6 }}>
