@@ -523,7 +523,42 @@ export default function App() {
   const pctUsed    =budgetTotal>0?Math.min((totalMonth/budgetTotal)*100,100):0;
 
   const pieData=useMemo(()=>{ const acc={}; monthExp.forEach(e=>{ acc[e.catId]=(acc[e.catId]||0)+e.amount; }); return Object.entries(acc).map(([id,val])=>({ name:catMap[id]?.name||"?",value:val,color:catMap[id]?.color||T.accent })); },[monthExp,catMap]);
-  const barData=useMemo(()=>{ const days=[]; const now=new Date(); for(let i=13;i>=0;i--){ const d=new Date(now); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); } return days.map(d=>({ day:d.slice(5),total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) })); },[expenses]);
+  const barData=useMemo(()=>{
+    if(filterMode==="day"){
+      // Single day — mostrar por hora (agrupado en bloques de 4hs)
+      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map(label=>({
+        day:label, total:0 // sin timestamp en expenses, mostramos el total del día en el primer bloque
+      })).map((b,i)=>i===0?{...b,total:monthExp.reduce((s,e)=>s+e.amount,0)}:b);
+    }
+    if(filterMode==="week"){
+      // 7 días de la semana seleccionada
+      const days=[]; const start=new Date(weekRange.from);
+      for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); days.push(d.toISOString().slice(0,10)); }
+      return days.map(d=>({ day:d.slice(5), total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) }));
+    }
+    if(filterMode==="year"){
+      // 12 meses del año
+      const meses=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+      return meses.map((name,i)=>{
+        const m=`${filterYear}-${String(i+1).padStart(2,"0")}`;
+        return { day:name, total:expenses.filter(e=>monthOf(e.date)===m).reduce((s,e)=>s+e.amount,0) };
+      });
+    }
+    // month — días del mes seleccionado
+    const [yr,mo]=filterMonth.split("-").map(Number);
+    const daysInMonth=new Date(yr,mo,0).getDate();
+    return Array.from({length:daysInMonth},(_,i)=>{
+      const d=`${filterMonth}-${String(i+1).padStart(2,"0")}`;
+      return { day:String(i+1), total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) };
+    });
+  },[expenses,filterMode,filterMonth,filterYear,filterDay,weekRange,monthExp]);
+
+  const barLabel=useMemo(()=>{
+    if(filterMode==="day")   return `Distribución del ${filterDay}`;
+    if(filterMode==="week")  return `Semana ${weekRange.from} → ${weekRange.to}`;
+    if(filterMode==="year")  return `Meses de ${filterYear}`;
+    return `Días de ${filterMonth}`;
+  },[filterMode,filterDay,filterMonth,filterYear,weekRange]);
   const catAlerts=useMemo(()=>categories.filter(c=>{ const limit=Number(budgets[c.id]); if(!limit) return false; const spent=monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return spent>=limit*0.9; }),[categories,budgets,monthExp]);
   const months=useMemo(()=>{ const set=new Set(expenses.map(e=>monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); },[expenses]);
   const years=useMemo(()=>{ const set=new Set(expenses.map(e=>e.date.slice(0,4))); set.add(currentYear()); return [...set].sort().reverse(); },[expenses]);
@@ -635,7 +670,7 @@ export default function App() {
 
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20 }}>
               <Card>
-                <SectionLabel>Por categoría</SectionLabel>
+                <SectionLabel>Por categoría · {barLabel}</SectionLabel>
                 {pieData.length===0
                   ? <div style={{ height:160,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:13 }}>Sin datos</div>
                   : <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={4}>{pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip content={<CTooltip/>}/></PieChart></ResponsiveContainer>
@@ -645,10 +680,10 @@ export default function App() {
                 </div>
               </Card>
               <Card>
-                <SectionLabel>Últimos 14 días</SectionLabel>
+                <SectionLabel>{barLabel}</SectionLabel>
                 <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={barData} barSize={10}>
-                    <XAxis dataKey="day" tick={{ fontSize:10,fill:T.subtle }} axisLine={false} tickLine={false} interval={2}/>
+                  <BarChart data={barData} barSize={filterMode==="year"?18:filterMode==="month"?8:12}>
+                    <XAxis dataKey="day" tick={{ fontSize:10,fill:T.subtle }} axisLine={false} tickLine={false} interval={filterMode==="month"?2:0}/>
                     <YAxis hide/>
                     <Tooltip content={<CTooltip/>} cursor={{ fill:`${T.accent}11` }}/>
                     <Bar dataKey="total" fill={T.accent} radius={[4,4,0,0]}/>
