@@ -1,4 +1,3 @@
-import { storage } from "./firebase.js";
 import { useState, useMemo, useEffect } from "react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 
@@ -10,7 +9,31 @@ const today = () => new Date().toISOString().slice(0, 10);
 const monthOf = (d) => d.slice(0, 7);
 const currentMonth = () => today().slice(0, 7);
 
-const DEFAULT_Categorías = [
+// Week helpers
+const getWeekRange = (offset = 0) => {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - day + 1 + offset * 7);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  return { from: monday.toISOString().slice(0,10), to: sunday.toISOString().slice(0,10) };
+};
+
+const inRange = (date, from, to) => date >= from && date <= to;
+
+// Export to CSV (no extra lib needed)
+const exportCSV = (expenses, catMap) => {
+  const rows = [["Fecha","Categoría","Descripción","Monto"]];
+  [...expenses].sort((a,b)=>b.date.localeCompare(a.date)).forEach(e => {
+    rows.push([e.date, catMap[e.catId]?.name||"?", e.desc||"", e.amount]);
+  });
+  const csv = rows.map(r=>r.join(",")).join("\n");
+  const blob = new Blob(["\uFEFF"+csv], { type:"text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href=url; a.download="mis-gastos.csv"; a.click();
+  URL.revokeObjectURL(url);
+};
+
+const DEFAULT_CATS = [
   { id: 1, name: "Comida", color: PALETTE[0], icon: "🍔" },
   { id: 2, name: "Transporte", color: PALETTE[1], icon: "🚌" },
   { id: 3, name: "Entretenimiento", color: PALETTE[2], icon: "🎬" },
@@ -20,6 +43,34 @@ const DEFAULT_Categorías = [
 ];
 
 const SEED_EXPENSES = [];
+
+// ── Category Detail Modal ──────────────────────────────────────────────
+function CatDetailModal({ cat, expenses, onClose }) {
+  const catExp = useMemo(() => [...expenses.filter(e=>e.catId===cat.id)].sort((a,b)=>b.date.localeCompare(a.date)), [expenses, cat]);
+  const total = catExp.reduce((s,e)=>s+e.amount,0);
+  return (
+    <Modal title={`${cat.icon} ${cat.name}`} onClose={onClose}>
+      <div style={{ maxHeight:320, overflowY:"auto" }}>
+        {catExp.length===0
+          ? <p style={{ color:"#475569", textAlign:"center", padding:"20px 0" }}>Sin gastos en este período</p>
+          : catExp.map(e=>(
+            <div key={e.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:"1px solid #1e2840" }}>
+              <div>
+                <p style={{ margin:0, fontSize:13, color:"#cbd5e1" }}>{e.desc||cat.name}</p>
+                <p style={{ margin:0, fontSize:11, color:"#475569" }}>{e.date}</p>
+              </div>
+              <span style={{ fontFamily:"'Space Mono',monospace", fontSize:13, color:cat.color, fontWeight:700 }}>{fmt(e.amount)}</span>
+            </div>
+          ))
+        }
+      </div>
+      <div style={{ display:"flex", justifyContent:"space-between", marginTop:14, paddingTop:12, borderTop:"1px solid #2d3650" }}>
+        <span style={{ color:"#64748b", fontSize:13 }}>Total</span>
+        <span style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, color:"#e2e8f0" }}>{fmt(total)}</span>
+      </div>
+    </Modal>
+  );
+}
 
 // ── Subcomponents ─────────────────────────────────────────────────────
 
@@ -122,21 +173,21 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
 
 // ── Category Manager Modal ─────────────────────────────────────────────
 function CatModal({ categories, onChange, onClose }) {
-  const [Categorías, setCategorías] = useState(categories);
+  const [cats, setCats] = useState(categories);
   const [newName, setNewName] = useState(""); const [newIcon, setNewIcon] = useState("💰");
   const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾"];
   const add = () => {
     if (!newName.trim()) return;
-    const used = Categorías.map(c=>c.color);
-    const color = PALETTE.find(p=>!used.includes(p)) || PALETTE[Categorías.length % PALETTE.length];
-    setCategorías(c=>[...c,{ id: Date.now(), name: newName.trim(), icon: newIcon, color }]);
+    const used = cats.map(c=>c.color);
+    const color = PALETTE.find(p=>!used.includes(p)) || PALETTE[cats.length % PALETTE.length];
+    setCats(c=>[...c,{ id: Date.now(), name: newName.trim(), icon: newIcon, color }]);
     setNewName("");
   };
-  const del = (id) => setCategorías(c=>c.filter(x=>x.id!==id));
+  const del = (id) => setCats(c=>c.filter(x=>x.id!==id));
   return (
     <Modal title="🏷️ Categorías" onClose={onClose}>
       <div style={{ maxHeight:220, overflowY:"auto", marginBottom:16 }}>
-        {Categorías.map(c=>(
+        {cats.map(c=>(
           <div key={c.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #1e2840" }}>
             <span style={{ width:20, height:20, borderRadius:4, background:c.color, display:"inline-block" }}/>
             <span style={{ fontSize:18 }}>{c.icon}</span>
@@ -155,7 +206,7 @@ function CatModal({ categories, onChange, onClose }) {
       </div>
       <div style={{ display:"flex", gap:10 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex:1 }}>Cancelar</Btn>
-        <Btn onClick={()=>{ onChange(Categorías); onClose(); }} style={{ flex:1 }}>Guardar</Btn>
+        <Btn onClick={()=>{ onChange(cats); onClose(); }} style={{ flex:1 }}>Guardar</Btn>
       </div>
     </Modal>
   );
@@ -173,10 +224,10 @@ function CTooltip({ active, payload, label }) {
 }
 
 // ── Category Treemap ──────────────────────────────────────────────────
-function CategoryTreemap({ categories, monthExp, catMap, total }) {
+function CategoryTreemap({ categories, monthExp, catMap, total, onCatClick }) {
   const [hovered, setHovered] = useState(null);
 
-  // Compute spending per category (include ALL Categorías, even $0)
+  // Compute spending per category (include ALL cats, even $0)
   const data = useMemo(() => {
     return categories.map(c => {
       const spent = monthExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0);
@@ -198,7 +249,7 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
     const totalSpent = data.reduce((s, d) => s + d.spent, 0);
     return data.map(d => {
       const pct = totalSpent > 0 ? d.spent / totalSpent : 1 / data.length;
-      const minPct = 0.03; // minimum 3% so empty Categorías show as tiny tile
+      const minPct = 0.03; // minimum 3% so empty cats show as tiny tile
       const effectivePct = totalSpent > 0 ? Math.max(pct, d.spent > 0 ? pct : minPct * 0.5) : 1 / data.length;
       return { ...d, pct: totalSpent > 0 ? pct : 1 / data.length, effectivePct };
     });
@@ -242,6 +293,7 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
                 key={d.id}
                 onMouseEnter={() => setHovered(d.id)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => onCatClick && d.spent > 0 && onCatClick(d)}
                 style={{
                   flexGrow: d.norm,
                   flexShrink: 0,
@@ -259,7 +311,7 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
                   flexDirection:"column",
                   alignItems:"center",
                   justifyContent:"center",
-                  cursor:"default",
+                  cursor:"pointer",
                   transition:"all .4s cubic-bezier(.34,1.56,.64,1)",
                   transform: isHov ? "scale(1.03)" : "scale(1)",
                   boxShadow: isHov ? `0 0 20px ${d.color}44` : "none",
@@ -329,31 +381,38 @@ function CategoryTreemap({ categories, monthExp, catMap, total }) {
 // ── Main App ───────────────────────────────────────────────────────────
 export default function App() {
   const [expenses, setExpenses]   = useState(SEED_EXPENSES);
-  const [categories, setCategories] = useState(DEFAULT_Categorías);
+  const [categories, setCategories] = useState(DEFAULT_CATS);
   const [budgets, setBudgets]     = useState({});
-  const [modal, setModal]         = useState(null); // "add"|"budget"|"Categorías"
+  const [modal, setModal]         = useState(null); // "add"|"budget"|"cats"
   const [view, setView]           = useState("dashboard"); // "dashboard"|"history"
   const [filterMonth, setFilterMonth] = useState(currentMonth());
+  const [filterMode, setFilterMode] = useState("month"); // "month"|"week"
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedCat, setSelectedCat] = useState(null);
 
   // Load from storage
   useEffect(()=>{
     (async()=>{
       try {
-        const e = await storage.get("expenses"); if(e) setExpenses(JSON.parse(e.value));
-        const c = await storage.get("categories"); if(c) setCategories(JSON.parse(c.value));
-        const b = await storage.get("budgets"); if(b) setBudgets(JSON.parse(b.value));
+        const e = await window.storage.get("expenses"); if(e) setExpenses(JSON.parse(e.value));
+        const c = await window.storage.get("categories"); if(c) setCategories(JSON.parse(c.value));
+        const b = await window.storage.get("budgets"); if(b) setBudgets(JSON.parse(b.value));
       } catch {}
     })();
   },[]);
 
-  const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(()=>{}); };
-  const saveCategorías     = (data) => { setCategories(data); storage.set("categories", JSON.stringify(data)).catch(()=>{}); };
-  const saveBudgets  = (data) => { setBudgets(data); storage.set("budgets", JSON.stringify(data)).catch(()=>{}); };
+  const saveExpenses = (data) => { setExpenses(data); window.storage.set("expenses", JSON.stringify(data)).catch(()=>{}); };
+  const saveCats     = (data) => { setCategories(data); window.storage.set("categories", JSON.stringify(data)).catch(()=>{}); };
+  const saveBudgets  = (data) => { setBudgets(data); window.storage.set("budgets", JSON.stringify(data)).catch(()=>{}); };
 
   const addExpense = (exp) => saveExpenses([...expenses, exp]);
   const delExpense = (id) => saveExpenses(expenses.filter(e=>e.id!==id));
 
-  const monthExp = useMemo(()=>expenses.filter(e=>monthOf(e.date)===filterMonth),[expenses,filterMonth]);
+  const weekRange = useMemo(()=>getWeekRange(weekOffset),[weekOffset]);
+  const monthExp = useMemo(()=>{
+    if(filterMode==="week") return expenses.filter(e=>inRange(e.date, weekRange.from, weekRange.to));
+    return expenses.filter(e=>monthOf(e.date)===filterMonth);
+  },[expenses,filterMonth,filterMode,weekRange]);
   const totalMonth = useMemo(()=>monthExp.reduce((s,e)=>s+e.amount,0),[monthExp]);
   const budgetTotal = Number(budgets.__total)||0;
   const overBudget = budgetTotal>0 && totalMonth>budgetTotal;
@@ -402,22 +461,41 @@ export default function App() {
           <span style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, fontSize:16, color:"#34d399" }}>MIS GASTOS</span>
         </div>
         <div style={{ display:"flex", gap:8 }}>
-          <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("Categorías")}>🏷️ Categorías</Btn>
+          <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
           <Btn variant="ghost" style={{ padding:"7px 14px", fontSize:13 }} onClick={()=>setModal("budget")}>🎯 Ppto</Btn>
           <Btn style={{ padding:"7px 16px", fontSize:13 }} onClick={()=>setModal("add")}>+ Gasto</Btn>
         </div>
       </div>
 
       {/* Nav */}
-      <div style={{ display:"flex", gap:0, borderBottom:"1px solid #1e2840", padding:"0 24px" }}>
+      <div style={{ display:"flex", gap:0, borderBottom:"1px solid #1e2840", padding:"0 24px", flexWrap:"wrap" }}>
         {[["dashboard","📊 Dashboard"],["history","📋 Historial"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)} style={{ background:"none", border:"none", borderBottom: view===v?"2px solid #34d399":"2px solid transparent", color: view===v?"#34d399":"#64748b", padding:"14px 18px", cursor:"pointer", fontFamily:"inherit", fontWeight:600, fontSize:13, letterSpacing:.3 }}>{l}</button>
         ))}
-        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
-          <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
-            style={{ background:"#0f1420", border:"1px solid #2d3650", borderRadius:6, padding:"5px 10px", color:"#94a3b8", fontSize:12, fontFamily:"inherit" }}>
-            {months.map(m=><option key={m}>{m}</option>)}
-          </select>
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8, padding:"8px 0" }}>
+          {/* Mode toggle */}
+          <div style={{ display:"flex", background:"#0a0e1a", border:"1px solid #2d3650", borderRadius:8, overflow:"hidden" }}>
+            {[["month","📅 Mes"],["week","📆 Semana"]].map(([m,l])=>(
+              <button key={m} onClick={()=>setFilterMode(m)} style={{ background: filterMode===m?"#34d399":"transparent", color: filterMode===m?"#0f1420":"#64748b", border:"none", padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", fontWeight:600, fontSize:12 }}>{l}</button>
+            ))}
+          </div>
+          {/* Month selector */}
+          {filterMode==="month" && (
+            <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}
+              style={{ background:"#0f1420", border:"1px solid #2d3650", borderRadius:6, padding:"5px 10px", color:"#94a3b8", fontSize:12, fontFamily:"inherit" }}>
+              {months.map(m=><option key={m}>{m}</option>)}
+            </select>
+          )}
+          {/* Week navigator */}
+          {filterMode==="week" && (
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <button onClick={()=>setWeekOffset(w=>w-1)} style={{ background:"#0f1420", border:"1px solid #2d3650", borderRadius:6, color:"#94a3b8", padding:"4px 10px", cursor:"pointer", fontSize:14 }}>‹</button>
+              <span style={{ color:"#94a3b8", fontSize:11, minWidth:130, textAlign:"center" }}>{weekRange.from} → {weekRange.to}</span>
+              <button onClick={()=>setWeekOffset(w=>Math.min(w+1,0))} style={{ background:"#0f1420", border:"1px solid #2d3650", borderRadius:6, color:"#94a3b8", padding:"4px 10px", cursor:"pointer", fontSize:14 }}>›</button>
+            </div>
+          )}
+          {/* Export */}
+          <button onClick={()=>exportCSV(monthExp, catMap)} style={{ background:"#1e2840", border:"1px solid #2d3650", borderRadius:6, color:"#34d399", padding:"5px 12px", cursor:"pointer", fontFamily:"inherit", fontWeight:600, fontSize:12 }}>⬇️ Excel</button>
         </div>
       </div>
 
@@ -457,7 +535,7 @@ export default function App() {
             </div>
 
             {/* Category Treemap */}
-            <CategoryTreemap categories={categories} monthExp={monthExp} catMap={catMap} total={totalMonth} />
+            <CategoryTreemap categories={categories} monthExp={monthExp} catMap={catMap} total={totalMonth} onCatClick={setSelectedCat} />
 
             {/* Budget bar */}
             {budgetTotal>0 && (
@@ -603,7 +681,8 @@ export default function App() {
       {/* Modals */}
       {modal==="add"    && <AddExpenseModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
       {modal==="budget" && <BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={()=>setModal(null)}/>}
-      {modal==="Categorías"   && <CatModal categories={categories} onChange={saveCategorías} onClose={()=>setModal(null)}/>}
+      {modal==="cats"   && <CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
+      {selectedCat && <CatDetailModal cat={selectedCat} expenses={monthExp} onClose={()=>setSelectedCat(null)}/>}
     </div>
   );
 }
