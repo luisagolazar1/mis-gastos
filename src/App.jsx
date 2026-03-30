@@ -202,7 +202,7 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
 function CatModal({ categories, onChange, onClose }) {
   const [cats, setCats] = useState(categories);
   const [newName, setNewName] = useState(""); const [newIcon, setNewIcon] = useState("💰");
-  const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾"];
+  const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾","🍕","🍺","☕","🍷","🥗","🏋️","🚗","⛽","🅿️","🚕","🚇","💈","💅","🧴","🧹","💡","🔧","🖥️","📱","🎵","🎭","⚽","🏊","🧘","🎓","📖","✏️","💼","🏦","💳","🎁","🎂","🐶","🐱","🌿","🌊","🏔️","🎪","🃏","🎯","🧃","🛍️","🧺","🪴","🕯️","🎠"];
   const add = () => {
     if (!newName.trim()) return;
     const used = cats.map(c=>c.color);
