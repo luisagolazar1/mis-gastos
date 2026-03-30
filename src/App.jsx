@@ -118,6 +118,33 @@ function Btn({ children, variant="primary", style={}, ...props }) {
   return <button {...props} style={{ ...base, ...vars[variant], ...style }}>{children}</button>;
 }
 
+// ── Edit Expense Modal ─────────────────────────────────────────────────
+function EditExpenseModal({ expense, categories, onSave, onClose }) {
+  const [form, setForm] = useState({ amount: expense.amount, catId: expense.catId, desc: expense.desc, date: expense.date });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const save = () => {
+    if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
+    onSave({ ...expense, amount: Number(form.amount), catId: Number(form.catId), desc: form.desc, date: form.date });
+    onClose();
+  };
+
+  return (
+    <Modal title="✏️ Editar gasto" onClose={onClose}>
+      <Input label="MONTO ($)" type="number" value={form.amount} onChange={e=>set("amount",e.target.value)} />
+      <Select label="CATEGORÍA" value={form.catId} onChange={e=>set("catId",e.target.value)}>
+        {categories.map(c=><option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+      </Select>
+      <Input label="DESCRIPCIÓN" value={form.desc} onChange={e=>set("desc",e.target.value)} />
+      <Input label="FECHA" type="date" value={form.date} onChange={e=>set("date",e.target.value)} />
+      <div style={{ display:"flex", gap:10, marginTop:4 }}>
+        <Btn variant="ghost" onClick={onClose} style={{ flex:1 }}>Cancelar</Btn>
+        <Btn onClick={save} style={{ flex:1 }}>Guardar</Btn>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Add Expense Modal ──────────────────────────────────────────────────
 function AddExpenseModal({ categories, onSave, onClose }) {
   const [form, setForm] = useState({ amount:"", catId: categories[0]?.id || "", desc:"", date: today() });
@@ -389,6 +416,7 @@ export default function App() {
   const [filterMode, setFilterMode] = useState("month"); // "month"|"week"
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedCat, setSelectedCat] = useState(null);
+  const [editingExpense, setEditingExpense] = useState(null);
 
   // Load from storage
   useEffect(()=>{
@@ -407,6 +435,7 @@ export default function App() {
 
   const addExpense = (exp) => saveExpenses([...expenses, exp]);
   const delExpense = (id) => saveExpenses(expenses.filter(e=>e.id!==id));
+  const editExpense = (updated) => saveExpenses(expenses.map(e=>e.id===updated.id ? updated : e));
 
   const weekRange = useMemo(()=>getWeekRange(weekOffset),[weekOffset]);
   const monthExp = useMemo(()=>{
@@ -664,6 +693,8 @@ export default function App() {
                         <p style={{ margin:0, fontSize:11, color:"#475569" }}>{cat?.name} · {e.date}</p>
                       </div>
                       <span style={{ fontFamily:"'Space Mono',monospace", fontWeight:700, color:"#34d399", fontSize:15 }}>{fmt(e.amount)}</span>
+                      <button onClick={()=>setEditingExpense(e)} style={{ background:"none", border:"none", color:"#475569", cursor:"pointer", fontSize:14, padding:"0 4px" }}
+                        onMouseEnter={ev=>ev.target.style.color="#60a5fa"} onMouseLeave={ev=>ev.target.style.color="#475569"}>✏️</button>
                       <button onClick={()=>delExpense(e.id)} style={{ background:"none", border:"none", color:"#334155", cursor:"pointer", fontSize:16, padding:"0 4px" }}
                         onMouseEnter={ev=>ev.target.style.color="#f87171"} onMouseLeave={ev=>ev.target.style.color="#334155"}>✕</button>
                     </div>
@@ -683,6 +714,7 @@ export default function App() {
       {modal==="budget" && <BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={()=>setModal(null)}/>}
       {modal==="cats"   && <CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
       {selectedCat && <CatDetailModal cat={selectedCat} expenses={monthExp} onClose={()=>setSelectedCat(null)}/>}
+      {editingExpense && <EditExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={()=>setEditingExpense(null)}/>}
     </div>
   );
 }
