@@ -570,20 +570,20 @@ export default function App() {
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 
       {/* Header */}
-      <div style={{ background:T.accent,borderBottom:`1px solid ${T.border}`,padding:"0 28px",display:"flex",alignItems:"center",justifyContent:"space-between",height:68 }}>
-        <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-          <span style={{ fontSize:32 }}>💸</span>
-          <span style={{ fontWeight:800,fontSize:20,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
+      <div style={{ background:T.accent,borderBottom:`1px solid ${T.border}`,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:60,flexWrap:"wrap" }}>
+        <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+          <span style={{ fontSize:26 }}>💸</span>
+          <span style={{ fontWeight:800,fontSize:17,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
         </div>
-        <div style={{ display:"flex",gap:8 }}>
-          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
-          <Btn variant="ghost" style={{ padding:"8px 14px",fontSize:13,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
-          <Btn style={{ padding:"8px 16px",fontSize:13,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
+        <div style={{ display:"flex",gap:6 }}>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯</Btn>
+          <Btn style={{ padding:"6px 12px",fontSize:12,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
 
       {/* Nav */}
-      <div style={{ background:T.accentLt,display:"flex",borderBottom:`1px solid ${T.border}`,padding:"0 28px",flexWrap:"wrap" }}>
+      <div style={{ background:T.accentLt,display:"flex",borderBottom:`1px solid ${T.border}`,padding:"0 12px",flexWrap:"wrap" }}>
         {[["dashboard","Dashboard"],["history","Historial"],["shopping","Lista de compras"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)} style={navStyle(v)}>{l}</button>
         ))}
@@ -620,7 +620,7 @@ export default function App() {
         )}
       </div>
 
-      <div style={{ padding:"24px 28px",maxWidth:960,margin:"0 auto" }}>
+      <div style={{ padding:"16px",maxWidth:960,margin:"0 auto" }}>
 
         {(overBudget||catAlerts.length>0)&&view!=="shopping"&&(
           <div style={{ background:T.warnLt,border:`1px solid #f5c6c6`,borderRadius:14,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:12 }}>
@@ -670,7 +670,7 @@ export default function App() {
 
             <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20 }}>
               <Card>
-                <SectionLabel>Por categoría · {barLabel}</SectionLabel>
+                <SectionLabel>Por categoría</SectionLabel>
                 {pieData.length===0
                   ? <div style={{ height:160,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:13 }}>Sin datos</div>
                   : <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={4}>{pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip content={<CTooltip/>}/></PieChart></ResponsiveContainer>
@@ -680,7 +680,7 @@ export default function App() {
                 </div>
               </Card>
               <Card>
-                <SectionLabel>{barLabel}</SectionLabel>
+                <SectionLabel>{filterMode==="day"?"Total del día":filterMode==="week"?"Por día de semana":filterMode==="year"?"Por mes":"Por día del mes"}</SectionLabel>
                 <ResponsiveContainer width="100%" height={180}>
                   <BarChart data={barData} barSize={filterMode==="year"?18:filterMode==="month"?8:12}>
                     <XAxis dataKey="day" tick={{ fontSize:10,fill:T.subtle }} axisLine={false} tickLine={false} interval={filterMode==="month"?2:0}/>
