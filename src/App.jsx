@@ -576,8 +576,8 @@ export default function App() {
           <span style={{ fontWeight:800,fontSize:17,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
         </div>
         <div style={{ display:"flex",gap:6 }}>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️</Btn>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
           <Btn style={{ padding:"6px 12px",fontSize:12,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
