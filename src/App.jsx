@@ -823,4 +823,4 @@ export default function App() {
       {editingExpense    &&<ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={()=>setEditingExpense(null)}/>}
     </div>
   );
-}
+} 
