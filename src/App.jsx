@@ -38,6 +38,38 @@ const inRange = (date,from,to) => date>=from && date<=to;
 const currentYear = () => new Date().getFullYear().toString();
 const currentDay  = () => today();
 
+// Budget period helpers
+const getBudgetPeriodRange = (period="month") => {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0,10);
+  if(period==="month") {
+    const from = todayStr.slice(0,7)+"-01";
+    const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+    const to   = todayStr.slice(0,7)+"-"+String(last).padStart(2,"0");
+    return { from, to, label:"este mes" };
+  }
+  if(period==="week") {
+    const day = now.getDay()||7;
+    const monday = new Date(now); monday.setDate(now.getDate()-day+1);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+    return { from:monday.toISOString().slice(0,10), to:sunday.toISOString().slice(0,10), label:"esta semana" };
+  }
+  if(period==="biweekly") {
+    const day = now.getDate();
+    let from, to;
+    if(day<=15) {
+      from = todayStr.slice(0,7)+"-01";
+      to   = todayStr.slice(0,7)+"-15";
+    } else {
+      from = todayStr.slice(0,7)+"-16";
+      const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+      to = todayStr.slice(0,7)+"-"+String(last).padStart(2,"0");
+    }
+    return { from, to, label:"esta quincena" };
+  }
+  return { from:todayStr, to:todayStr, label:"hoy" };
+};
+
 const exportCSV = (expenses,catMap) => {
   const rows=[["Fecha","Categoría","Subcategoría","Descripción","Monto"]];
   [...expenses].sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>{
@@ -165,10 +197,22 @@ function ExpenseModal({ expense,categories,onSave,onClose }) {
 function BudgetModal({ budgets,categories,onSave,onClose }) {
   const [vals,setVals]=useState({...budgets});
   return (
-    <Modal title="Presupuesto mensual" onClose={onClose}>
-      <p style={{ color:T.muted,fontSize:13,marginBottom:20 }}>Establecé límites de gasto para este mes.</p>
-      <Inp label="Total mensual ($)" type="number" placeholder="0 = sin límite" value={vals.__total||""} onChange={e=>setVals(v=>({...v,__total:e.target.value}))}/>
-      <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:12 }}>Por categoría</p>
+    <Modal title="Presupuesto" onClose={onClose}>
+      <p style={{ color:T.muted,fontSize:13,marginBottom:20 }}>Establecé límites de gasto y el período de reinicio.</p>
+
+      {/* Period selector */}
+      <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:10 }}>Período de reinicio</p>
+      <div style={{ display:"flex",gap:8,marginBottom:20 }}>
+        {[["week","Semanal"],["biweekly","Quincenal"],["month","Mensual"]].map(([val,label])=>(
+          <button key={val} onClick={()=>setVals(v=>({...v,__period:val}))}
+            style={{ flex:1,padding:"10px 6px",borderRadius:12,border:`1.5px solid ${vals.__period===val?T.accent:T.border}`,background:vals.__period===val?T.accentLt:"transparent",color:vals.__period===val?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:600,fontSize:12 }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <Inp label="Límite total ($)" type="number" placeholder="0 = sin límite" value={vals.__total||""} onChange={e=>setVals(v=>({...v,__total:e.target.value}))}/>
+      <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:12 }}>Por categoría (opcional)</p>
       {categories.map(c=>(
         <div key={c.id} style={{ display:"flex",alignItems:"center",gap:12,marginBottom:10 }}>
           <span style={{ fontSize:20 }}>{c.icon}</span>
@@ -517,10 +561,15 @@ export default function App() {
     return expenses.filter(e=>monthOf(e.date)===filterMonth);
   },[expenses,filterMonth,filterMode,weekRange,filterYear,filterDay]);
 
-  const totalMonth =useMemo(()=>monthExp.reduce((s,e)=>s+e.amount,0),[monthExp]);
-  const budgetTotal=Number(budgets.__total)||0;
-  const overBudget =budgetTotal>0&&totalMonth>budgetTotal;
-  const pctUsed    =budgetTotal>0?Math.min((totalMonth/budgetTotal)*100,100):0;
+  const totalMonth   = useMemo(()=>monthExp.reduce((s,e)=>s+e.amount,0),[monthExp]);
+  const budgetTotal  = Number(budgets.__total)||0;
+  const budgetPeriod = budgets.__period||"month";
+  const budgetRange  = useMemo(()=>getBudgetPeriodRange(budgetPeriod),[budgetPeriod]);
+  const budgetExp    = useMemo(()=>expenses.filter(e=>inRange(e.date,budgetRange.from,budgetRange.to)),[expenses,budgetRange]);
+  const budgetSpent  = useMemo(()=>budgetExp.reduce((s,e)=>s+e.amount,0),[budgetExp]);
+  const overBudget   = budgetTotal>0 && budgetSpent>budgetTotal;
+  const pctUsed      = budgetTotal>0?Math.min((budgetSpent/budgetTotal)*100,100):0;
+  const catAlerts    = useMemo(()=>categories.filter(c=>{ const limit=Number(budgets[c.id]); if(!limit) return false; const spent=budgetExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return spent>=limit*0.9; }),[categories,budgets,budgetExp]);
 
   const pieData=useMemo(()=>{ const acc={}; monthExp.forEach(e=>{ acc[e.catId]=(acc[e.catId]||0)+e.amount; }); return Object.entries(acc).map(([id,val])=>({ name:catMap[id]?.name||"?",value:val,color:catMap[id]?.color||T.accent })); },[monthExp,catMap]);
   const barData=useMemo(()=>{
@@ -576,8 +625,8 @@ export default function App() {
           <span style={{ fontWeight:800,fontSize:17,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
         </div>
         <div style={{ display:"flex",gap:6 }}>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯</Btn>
           <Btn style={{ padding:"6px 12px",fontSize:12,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
@@ -626,8 +675,8 @@ export default function App() {
           <div style={{ background:T.warnLt,border:`1px solid #f5c6c6`,borderRadius:14,padding:"12px 18px",marginBottom:20,display:"flex",alignItems:"center",gap:12 }}>
             <span style={{ fontSize:20 }}>⚠️</span>
             <div style={{ fontSize:13 }}>
-              {overBudget&&<p style={{ color:T.warn,margin:0,fontWeight:600 }}>Superaste el presupuesto mensual ({fmt(totalMonth)} / {fmt(budgetTotal)})</p>}
-              {catAlerts.map(c=>{ const spent=monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); const limit=Number(budgets[c.id]); return <p key={c.id} style={{ color:T.orange,margin:"4px 0 0" }}>{c.icon} {c.name}: {fmt(spent)} / {fmt(limit)}</p>; })}
+              {overBudget&&<p style={{ color:T.warn,margin:0,fontWeight:600 }}>Superaste el presupuesto {budgetRange.label} ({fmt(budgetSpent)} / {fmt(budgetTotal)})</p>}
+              {catAlerts.map(c=>{ const spent=budgetExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); const limit=Number(budgets[c.id]); return <p key={c.id} style={{ color:T.orange,margin:"4px 0 0" }}>{c.icon} {c.name}: {fmt(spent)} / {fmt(limit)}</p>; })}
             </div>
           </div>
         )}
@@ -639,9 +688,9 @@ export default function App() {
             {/* KPI cards */}
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:14,marginBottom:20 }}>
               {[
-                {label:"Gastado este mes",val:fmt(totalMonth),color:T.accent,bg:T.accentLt},
+                {label:budgetTotal>0?`Gastado ${budgetRange.label}`:"Gastado este mes",val:fmt(budgetTotal>0?budgetSpent:totalMonth),color:T.accent,bg:T.accentLt},
                 {label:"Presupuesto",val:budgetTotal>0?fmt(budgetTotal):"Sin límite",color:T.accent,bg:T.accentLt},
-                {label:"Disponible",val:budgetTotal>0?fmt(Math.max(budgetTotal-totalMonth,0)):"—",color:overBudget?T.warn:T.accentMd,bg:overBudget?T.warnLt:T.accentLt},
+                {label:"Disponible",val:budgetTotal>0?fmt(Math.max(budgetTotal-budgetSpent,0)):"—",color:overBudget?T.warn:T.accentMd,bg:overBudget?T.warnLt:T.accentLt},
                 {label:"Transacciones",val:monthExp.length,color:T.accent,bg:T.accentLt},
               ].map((k,i)=>(
                 <div key={i} style={{ background:T.surface,borderRadius:18,padding:"20px 22px",boxShadow:T.shadow }}>
@@ -658,12 +707,17 @@ export default function App() {
 
             {budgetTotal>0&&(
               <Card style={{ marginBottom:20 }}>
-                <div style={{ display:"flex",justifyContent:"space-between",marginBottom:10 }}>
-                  <span style={{ fontSize:13,color:T.muted,fontWeight:600 }}>Uso del presupuesto</span>
+                <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6 }}>
+                  <span style={{ fontSize:13,color:T.muted,fontWeight:600 }}>Presupuesto {budgetRange.label}</span>
                   <span style={{ fontSize:13,color:overBudget?T.warn:T.accent,fontWeight:700 }}>{pctUsed.toFixed(0)}%</span>
                 </div>
+                <div style={{ fontSize:11,color:T.subtle,marginBottom:10 }}>{budgetRange.from} → {budgetRange.to}</div>
                 <div style={{ height:8,background:T.bg,borderRadius:4,overflow:"hidden" }}>
                   <div style={{ height:"100%",width:`${pctUsed}%`,background:overBudget?T.warn:`linear-gradient(90deg,${T.accent},${T.accentMd})`,borderRadius:4,transition:"width .4s" }}/>
+                </div>
+                <div style={{ display:"flex",justifyContent:"space-between",marginTop:6 }}>
+                  <span style={{ fontSize:11,color:T.muted }}>{fmt(budgetSpent)} gastado</span>
+                  <span style={{ fontSize:11,color:T.subtle }}>{fmt(budgetTotal)} límite</span>
                 </div>
               </Card>
             )}
