@@ -363,6 +363,130 @@ function MiniBarCard({ barData, barLabel, onClick }) {
   );
 }
 
+// ── Scan Ticket Modal ─────────────────────────────────────────────────
+function ScanModal({ categories, onSave, onClose }) {
+  const [step, setStep] = useState("pick"); // pick | scanning | confirm | error
+  const [preview, setPreview] = useState(null);
+  const [extracted, setExtracted] = useState(null);
+  const [errMsg, setErrMsg] = useState("");
+  const [form, setForm] = useState({ amount: "", catId: categories[0]?.id || "", subCatId: "", desc: "", date: today() });
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const cat = categories.find(c => c.id === Number(form.catId));
+  const subcats = cat?.subcats || [];
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    // Preview
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result;
+      setPreview(dataUrl);
+      setStep("scanning");
+
+      // Extract base64
+      const base64 = dataUrl.split(",")[1];
+      const mediaType = file.type || "image/jpeg";
+
+      try {
+        const res = await fetch("/api/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64, mediaType }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        setExtracted(data);
+        setForm(f => ({
+          ...f,
+          amount: data.amount ?? "",
+          desc: data.description || "",
+          date: data.date || today(),
+        }));
+        setStep("confirm");
+      } catch (err) {
+        setErrMsg("No se pudo leer la imagen. Ingresá los datos manualmente.");
+        setStep("error");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const save = () => {
+    if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
+    onSave({ id: Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
+    onClose();
+  };
+
+  return (
+    <Modal title="Escanear ticket" onClose={onClose}>
+      {step === "pick" && (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>📷</div>
+          <p style={{ color: T.muted, fontSize: 13, marginBottom: 24 }}>Sacá una foto o subí una imagen del ticket, factura o captura de pago</p>
+          <label style={{ display: "block", background: T.accent, color: "#fff", borderRadius: 12, padding: "12px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14, marginBottom: 10 }}>
+            📁 Elegir imagen
+            <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
+          </label>
+          <Btn variant="ghost" onClick={onClose} style={{ width: "100%" }}>Cancelar</Btn>
+        </div>
+      )}
+
+      {step === "scanning" && (
+        <div style={{ textAlign: "center", padding: "20px 0" }}>
+          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 12, marginBottom: 20 }} />}
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
+          <p style={{ color: T.muted, fontSize: 14, fontWeight: 600 }}>Leyendo el ticket...</p>
+          <p style={{ color: T.subtle, fontSize: 12 }}>Claude está analizando la imagen</p>
+        </div>
+      )}
+
+      {step === "error" && (
+        <div style={{ textAlign: "center", padding: "10px 0" }}>
+          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginBottom: 16 }} />}
+          <p style={{ color: T.warn, fontSize: 13, marginBottom: 20 }}>⚠️ {errMsg}</p>
+          <Inp label="Monto ($)" type="number" placeholder="0" value={form.amount} onChange={e => set("amount", e.target.value)} />
+          <Sel label="Categoría" value={form.catId} onChange={e => set("catId", e.target.value)}>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </Sel>
+          <Inp label="Descripción" placeholder="ej: supermercado" value={form.desc} onChange={e => set("desc", e.target.value)} />
+          <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
+            <Btn onClick={save} style={{ flex: 1 }}>Guardar</Btn>
+          </div>
+        </div>
+      )}
+
+      {step === "confirm" && (
+        <div>
+          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginBottom: 16, border: `1px solid ${T.border}` }} />}
+          <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>✅</span>
+            <span style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>Ticket leído — revisá y confirmá</span>
+          </div>
+          <Inp label="Monto ($)" type="number" value={form.amount} onChange={e => set("amount", e.target.value)} />
+          <Sel label="Categoría" value={form.catId} onChange={e => { set("catId", e.target.value); set("subCatId", ""); }}>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </Sel>
+          {subcats.length > 0 && (
+            <Sel label="Subcategoría (opcional)" value={form.subCatId} onChange={e => set("subCatId", e.target.value)}>
+              <option value="">— Sin subcategoría —</option>
+              {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </Sel>
+          )}
+          <Inp label="Descripción" value={form.desc} onChange={e => set("desc", e.target.value)} />
+          <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
+            <Btn onClick={save} style={{ flex: 1 }}>Guardar</Btn>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 // ── Add/Edit Expense Modal ────────────────────────────────────────────
 function ExpenseModal({ expense,categories,onSave,onClose }) {
   const isEdit=!!expense;
@@ -827,6 +951,7 @@ export default function App() {
         <div style={{ display:"flex",gap:6 }}>
           <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️</Btn>
           <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("scan")}>📷</Btn>
           <Btn style={{ padding:"6px 12px",fontSize:12,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
@@ -998,6 +1123,7 @@ export default function App() {
         )}
       </div>
 
+      {modal==="scan"    &&<ScanModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
       {modal==="add"    &&<ExpenseModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
       {modal==="budget" &&<BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={()=>setModal(null)}/>}
       {modal==="cats"   &&<CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
