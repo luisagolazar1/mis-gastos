@@ -608,7 +608,7 @@ export default function App() {
     if(filterMode==="year")  return `Meses de ${filterYear}`;
     return `Días de ${filterMonth}`;
   },[filterMode,filterDay,filterMonth,filterYear,weekRange]);
-  const catAlerts=useMemo(()=>categories.filter(c=>{ const limit=Number(budgets[c.id]); if(!limit) return false; const spent=monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return spent>=limit*0.9; }),[categories,budgets,monthExp]);
+  
   const months=useMemo(()=>{ const set=new Set(expenses.map(e=>monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); },[expenses]);
   const years=useMemo(()=>{ const set=new Set(expenses.map(e=>e.date.slice(0,4))); set.add(currentYear()); return [...set].sort().reverse(); },[expenses]);
 
