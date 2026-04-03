@@ -1,6 +1,6 @@
 import { storage } from "./firebase.js";
 import { useState, useMemo, useEffect } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid } from "recharts";
 
 // ── Design tokens ─────────────────────────────────────────────────────
 const T = {
@@ -38,7 +38,6 @@ const inRange = (date,from,to) => date>=from && date<=to;
 const currentYear = () => new Date().getFullYear().toString();
 const currentDay  = () => today();
 
-// Budget period helpers
 const getBudgetPeriodRange = (period="month") => {
   const now = new Date();
   const todayStr = now.toISOString().slice(0,10);
@@ -157,6 +156,213 @@ function CTooltip({ active,payload,label }) {
   );
 }
 
+// ── Chart Detail Modal ────────────────────────────────────────────────
+function ChartDetailModal({ type, pieData, barData, barLabel, catMap, monthExp, total, onClose }) {
+  const topCats = [...pieData].sort((a,b)=>b.value-a.value).slice(0,5);
+
+  return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(26,31,26,.55)",backdropFilter:"blur(8px)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
+      <div style={{ background:T.surface,borderRadius:"24px 24px 0 0",padding:"28px 20px 36px",width:"100%",maxWidth:560,boxShadow:T.shadowLg,maxHeight:"85vh",overflowY:"auto" }}>
+        {/* Handle bar */}
+        <div style={{ width:40,height:4,background:T.border,borderRadius:2,margin:"0 auto 20px",cursor:"pointer" }} onClick={onClose}/>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <span style={{ fontWeight:700,fontSize:17,color:T.text }}>
+            {type==="pie" ? "Distribución por categoría" : barLabel}
+          </span>
+          <button onClick={onClose} style={{ background:T.bg,border:"none",borderRadius:10,width:32,height:32,cursor:"pointer",color:T.muted,fontSize:16 }}>✕</button>
+        </div>
+
+        {type==="pie" && (
+          <>
+            {/* Full donut */}
+            <div style={{ display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20 }}>
+              <div style={{ position:"relative",width:220,height:220 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={62} outerRadius={100} paddingAngle={3}>
+                      {pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}
+                    </Pie>
+                    <Tooltip content={<CTooltip/>}/>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none" }}>
+                  <span style={{ fontSize:11,color:T.muted,fontWeight:600,letterSpacing:.5 }}>TOTAL</span>
+                  <span style={{ fontSize:16,fontWeight:800,color:T.accent }}>{fmt(total)}</span>
+                </div>
+              </div>
+            </div>
+            {/* Category list */}
+            <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+              {[...pieData].sort((a,b)=>b.value-a.value).map((d,i)=>{
+                const pct=total>0?((d.value/total)*100).toFixed(1):"0";
+                return (
+                  <div key={i} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:T.bg,borderRadius:14 }}>
+                    <div style={{ width:36,height:36,borderRadius:10,background:`${d.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>
+                      {Object.values(catMap).find(c=>c.name===d.name)?.icon||"💰"}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <p style={{ margin:0,fontSize:14,fontWeight:600,color:T.text }}>{d.name}</p>
+                      <div style={{ height:4,background:T.border,borderRadius:2,marginTop:5,overflow:"hidden" }}>
+                        <div style={{ height:"100%",width:`${pct}%`,background:d.color,borderRadius:2,transition:"width .5s" }}/>
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      <p style={{ margin:0,fontSize:14,fontWeight:700,color:T.accent }}>{fmt(d.value)}</p>
+                      <p style={{ margin:0,fontSize:11,color:T.subtle }}>{pct}%</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {type==="bar" && (
+          <>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={barData} barSize={14} margin={{ top:8,right:8,left:0,bottom:0 }}>
+                <CartesianGrid vertical={false} stroke={T.border} strokeDasharray="3 3"/>
+                <XAxis dataKey="day" tick={{ fontSize:11,fill:T.subtle }} axisLine={false} tickLine={false} interval="preserveStartEnd"/>
+                <YAxis tick={{ fontSize:11,fill:T.subtle }} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v}/>
+                <Tooltip content={<CTooltip/>} cursor={{ fill:`${T.accent}11` }}/>
+                <Bar dataKey="total" fill={T.accent} radius={[6,6,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+
+            {/* Line chart overlay */}
+            <div style={{ marginTop:16 }}>
+              <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:10 }}>Tendencia acumulada</p>
+              <ResponsiveContainer width="100%" height={100}>
+                <LineChart data={barData.reduce((acc,d,i)=>{
+                  const prev=acc[i-1]?.acum||0;
+                  return [...acc,{...d,acum:prev+d.total}];
+                },[])}>
+                  <Line type="monotone" dataKey="acum" stroke={T.accentMd} strokeWidth={2.5} dot={false}/>
+                  <Tooltip formatter={(v)=>[fmt(v),"Acumulado"]} contentStyle={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,fontSize:12 }}/>
+                  <XAxis dataKey="day" hide/>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Summary stats */}
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:16 }}>
+              {[
+                { label:"Total", val:fmt(barData.reduce((s,d)=>s+d.total,0)) },
+                { label:"Promedio/día", val:fmt(barData.filter(d=>d.total>0).length>0 ? barData.reduce((s,d)=>s+d.total,0)/barData.filter(d=>d.total>0).length : 0) },
+                { label:"Días con gasto", val:barData.filter(d=>d.total>0).length },
+              ].map((s,i)=>(
+                <div key={i} style={{ background:T.bg,borderRadius:14,padding:"12px 10px",textAlign:"center" }}>
+                  <p style={{ margin:0,fontSize:10,color:T.muted,fontWeight:600,letterSpacing:.5,textTransform:"uppercase" }}>{s.label}</p>
+                  <p style={{ margin:"6px 0 0",fontSize:15,fontWeight:700,color:T.accent }}>{s.val}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Mini Chart Cards ─────────────────────────────────────────────────
+function MiniDonutCard({ pieData, total, onClick }) {
+  const top3 = [...pieData].sort((a,b)=>b.value-a.value).slice(0,3);
+  return (
+    <div onClick={onClick} style={{ background:T.surface,borderRadius:20,padding:"18px 16px",boxShadow:T.shadow,cursor:"pointer",transition:"transform .2s,box-shadow .2s",flex:1,minWidth:0 }}
+      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=T.shadowLg; }}
+      onMouseLeave={e=>{ e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow=T.shadow; }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+        <span style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase" }}>Por categoría</span>
+        <span style={{ fontSize:10,color:T.subtle }}>ver más →</span>
+      </div>
+      {pieData.length===0
+        ? <div style={{ height:100,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:12 }}>Sin datos</div>
+        : (
+          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+            {/* Mini donut */}
+            <div style={{ position:"relative",flexShrink:0,width:80,height:80 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={24} outerRadius={38} paddingAngle={2} startAngle={90} endAngle={-270}>
+                    {pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none" }}>
+                <span style={{ fontSize:9,fontWeight:800,color:T.accent,textAlign:"center",lineHeight:1.2 }}>{pieData.length}<br/>cat</span>
+              </div>
+            </div>
+            {/* Top 3 list */}
+            <div style={{ flex:1,minWidth:0 }}>
+              {top3.map((d,i)=>{
+                const pct=total>0?((d.value/total)*100).toFixed(0):"0";
+                return (
+                  <div key={i} style={{ marginBottom:i<top3.length-1?8:0 }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3 }}>
+                      <span style={{ fontSize:12,color:T.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%" }}>{d.name}</span>
+                      <span style={{ fontSize:11,color:T.muted,flexShrink:0 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height:3,background:T.border,borderRadius:2,overflow:"hidden" }}>
+                      <div style={{ height:"100%",width:`${pct}%`,background:d.color,borderRadius:2 }}/>
+                    </div>
+                  </div>
+                );
+              })}
+              {pieData.length>3 && <span style={{ fontSize:10,color:T.subtle }}>+{pieData.length-3} más</span>}
+            </div>
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
+function MiniBarCard({ barData, barLabel, onClick }) {
+  const maxVal = Math.max(...barData.map(d=>d.total),1);
+  const activeDays = barData.filter(d=>d.total>0);
+  return (
+    <div onClick={onClick} style={{ background:T.surface,borderRadius:20,padding:"18px 16px",boxShadow:T.shadow,cursor:"pointer",transition:"transform .2s,box-shadow .2s",flex:1,minWidth:0 }}
+      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=T.shadowLg; }}
+      onMouseLeave={e=>{ e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow=T.shadow; }}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+        <span style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"75%" }}>{barLabel}</span>
+        <span style={{ fontSize:10,color:T.subtle,flexShrink:0 }}>ver más →</span>
+      </div>
+      {activeDays.length===0
+        ? <div style={{ height:80,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:12 }}>Sin datos</div>
+        : (
+          <>
+            {/* Mini bars — show subset for readability */}
+            <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:64,marginBottom:10 }}>
+              {(barData.length>20 ? barData.filter((_,i)=>i%Math.ceil(barData.length/20)===0) : barData).map((d,i)=>{
+                const h=maxVal>0?Math.max((d.total/maxVal)*56,d.total>0?4:1):1;
+                return (
+                  <div key={i} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:64 }}>
+                    <div style={{ width:"100%",height:h,background:d.total>0?T.accent:T.border,borderRadius:"2px 2px 0 0",transition:"height .3s" }}/>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Line */}
+            <div style={{ height:2,background:`linear-gradient(90deg,${T.accentMd},${T.accent})`,borderRadius:1,marginBottom:10 }}/>
+            {/* Stats row */}
+            <div style={{ display:"flex",justifyContent:"space-between" }}>
+              <div>
+                <p style={{ margin:0,fontSize:10,color:T.subtle,fontWeight:600 }}>DÍAS ACTIVOS</p>
+                <p style={{ margin:"2px 0 0",fontSize:14,fontWeight:700,color:T.accent }}>{activeDays.length}</p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ margin:0,fontSize:10,color:T.subtle,fontWeight:600 }}>PICO</p>
+                <p style={{ margin:"2px 0 0",fontSize:14,fontWeight:700,color:T.accent }}>{fmt(maxVal)}</p>
+              </div>
+            </div>
+          </>
+        )
+      }
+    </div>
+  );
+}
+
 // ── Add/Edit Expense Modal ────────────────────────────────────────────
 function ExpenseModal({ expense,categories,onSave,onClose }) {
   const isEdit=!!expense;
@@ -199,8 +405,6 @@ function BudgetModal({ budgets,categories,onSave,onClose }) {
   return (
     <Modal title="Presupuesto" onClose={onClose}>
       <p style={{ color:T.muted,fontSize:13,marginBottom:20 }}>Establecé límites de gasto y el período de reinicio.</p>
-
-      {/* Period selector */}
       <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:10 }}>Período de reinicio</p>
       <div style={{ display:"flex",gap:8,marginBottom:20 }}>
         {[["week","Semanal"],["biweekly","Quincenal"],["month","Mensual"]].map(([val,label])=>(
@@ -210,7 +414,6 @@ function BudgetModal({ budgets,categories,onSave,onClose }) {
           </button>
         ))}
       </div>
-
       <Inp label="Límite total ($)" type="number" placeholder="0 = sin límite" value={vals.__total||""} onChange={e=>setVals(v=>({...v,__total:e.target.value}))}/>
       <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:12 }}>Por categoría (opcional)</p>
       {categories.map(c=>(
@@ -533,6 +736,7 @@ export default function App() {
   const [filterDay,setFilterDay]    = useState(currentDay());
   const [selectedCat,setSelectedCat] = useState(null);
   const [editingExpense,setEditingExpense] = useState(null);
+  const [chartDetail,setChartDetail] = useState(null); // "pie" | "bar"
 
   useEffect(()=>{
     (async()=>{
@@ -574,26 +778,22 @@ export default function App() {
   const pieData=useMemo(()=>{ const acc={}; monthExp.forEach(e=>{ acc[e.catId]=(acc[e.catId]||0)+e.amount; }); return Object.entries(acc).map(([id,val])=>({ name:catMap[id]?.name||"?",value:val,color:catMap[id]?.color||T.accent })); },[monthExp,catMap]);
   const barData=useMemo(()=>{
     if(filterMode==="day"){
-      // Single day — mostrar por hora (agrupado en bloques de 4hs)
-      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map(label=>({
-        day:label, total:0 // sin timestamp en expenses, mostramos el total del día en el primer bloque
-      })).map((b,i)=>i===0?{...b,total:monthExp.reduce((s,e)=>s+e.amount,0)}:b);
+      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map((label,i)=>({
+        day:label, total:i===0?monthExp.reduce((s,e)=>s+e.amount,0):0
+      }));
     }
     if(filterMode==="week"){
-      // 7 días de la semana seleccionada
       const days=[]; const start=new Date(weekRange.from);
       for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); days.push(d.toISOString().slice(0,10)); }
       return days.map(d=>({ day:d.slice(5), total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) }));
     }
     if(filterMode==="year"){
-      // 12 meses del año
       const meses=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
       return meses.map((name,i)=>{
         const m=`${filterYear}-${String(i+1).padStart(2,"0")}`;
         return { day:name, total:expenses.filter(e=>monthOf(e.date)===m).reduce((s,e)=>s+e.amount,0) };
       });
     }
-    // month — días del mes seleccionado
     const [yr,mo]=filterMonth.split("-").map(Number);
     const daysInMonth=new Date(yr,mo,0).getDate();
     return Array.from({length:daysInMonth},(_,i)=>{
@@ -603,12 +803,12 @@ export default function App() {
   },[expenses,filterMode,filterMonth,filterYear,filterDay,weekRange,monthExp]);
 
   const barLabel=useMemo(()=>{
-    if(filterMode==="day")   return `Distribución del ${filterDay}`;
-    if(filterMode==="week")  return `Semana ${weekRange.from} → ${weekRange.to}`;
-    if(filterMode==="year")  return `Meses de ${filterYear}`;
-    return `Días de ${filterMonth}`;
+    if(filterMode==="day")   return `Día ${filterDay}`;
+    if(filterMode==="week")  return `Semana`;
+    if(filterMode==="year")  return `Año ${filterYear}`;
+    return `Mes ${filterMonth}`;
   },[filterMode,filterDay,filterMonth,filterYear,weekRange]);
-  
+
   const months=useMemo(()=>{ const set=new Set(expenses.map(e=>monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); },[expenses]);
   const years=useMemo(()=>{ const set=new Set(expenses.map(e=>e.date.slice(0,4))); set.add(currentYear()); return [...set].sort().reverse(); },[expenses]);
 
@@ -722,28 +922,10 @@ export default function App() {
               </Card>
             )}
 
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20 }}>
-              <Card>
-                <SectionLabel>Por categoría</SectionLabel>
-                {pieData.length===0
-                  ? <div style={{ height:160,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:13 }}>Sin datos</div>
-                  : <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={4}>{pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip content={<CTooltip/>}/></PieChart></ResponsiveContainer>
-                }
-                <div style={{ display:"flex",flexWrap:"wrap",gap:"5px 12px",marginTop:10 }}>
-                  {pieData.map((d,i)=><div key={i} style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ width:8,height:8,borderRadius:2,background:d.color,display:"inline-block" }}/><span style={{ fontSize:11,color:T.muted }}>{d.name}</span></div>)}
-                </div>
-              </Card>
-              <Card>
-                <SectionLabel>{filterMode==="day"?"Total del día":filterMode==="week"?"Por día de semana":filterMode==="year"?"Por mes":"Por día del mes"}</SectionLabel>
-                <ResponsiveContainer width="100%" height={180}>
-                  <BarChart data={barData} barSize={filterMode==="year"?18:filterMode==="month"?8:12}>
-                    <XAxis dataKey="day" tick={{ fontSize:10,fill:T.subtle }} axisLine={false} tickLine={false} interval={filterMode==="month"?2:0}/>
-                    <YAxis hide/>
-                    <Tooltip content={<CTooltip/>} cursor={{ fill:`${T.accent}11` }}/>
-                    <Bar dataKey="total" fill={T.accent} radius={[4,4,0,0]}/>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
+            {/* ── Mini Chart Cards (mobile-friendly, tap to expand) ── */}
+            <div style={{ display:"flex",gap:14,marginBottom:20 }}>
+              <MiniDonutCard pieData={pieData} total={totalMonth} onClick={()=>setChartDetail("pie")}/>
+              <MiniBarCard barData={barData} barLabel={barLabel} onClick={()=>setChartDetail("bar")}/>
             </div>
 
             {categories.filter(c=>Number(budgets[c.id])>0).length>0&&(
@@ -821,6 +1003,7 @@ export default function App() {
       {modal==="cats"   &&<CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
       {selectedCat      &&<CatDetailModal cat={selectedCat} expenses={monthExp} onClose={()=>setSelectedCat(null)}/>}
       {editingExpense    &&<ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={()=>setEditingExpense(null)}/>}
+      {chartDetail      &&<ChartDetailModal type={chartDetail} pieData={pieData} barData={barData} barLabel={barLabel} catMap={catMap} monthExp={monthExp} total={totalMonth} onClose={()=>setChartDetail(null)}/>}
     </div>
   );
-} 
+}
