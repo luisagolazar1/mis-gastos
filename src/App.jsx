@@ -1,6 +1,6 @@
 import { storage } from "./firebase.js";
 import { useState, useMemo, useEffect } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
 // ── Design tokens ─────────────────────────────────────────────────────
 const T = {
@@ -23,7 +23,40 @@ const T = {
 
 const PALETTE = ["#e74c3c","#3498db","#f39c12","#9b59b6","#1abc9c","#e67e22","#2ecc71","#e91e63","#00bcd4","#ff5722"];
 
-const fmt = (n) => new Intl.NumberFormat("es-AR", { style:"currency", currency:"ARS", maximumFractionDigits:0 }).format(n);
+// ── Currencies ────────────────────────────────────────────────────────
+const CURRENCIES = [
+  { code:"ARS", name:"Peso Argentino",    symbol:"$",   locale:"es-AR" },
+  { code:"UYU", name:"Peso Uruguayo",     symbol:"$U",  locale:"es-UY" },
+  { code:"CLP", name:"Peso Chileno",      symbol:"$",   locale:"es-CL" },
+  { code:"PYG", name:"Guaraní Paraguayo", symbol:"₲",   locale:"es-PY" },
+  { code:"BRL", name:"Real Brasileño",    symbol:"R$",  locale:"pt-BR" },
+  { code:"PEN", name:"Sol Peruano",       symbol:"S/",  locale:"es-PE" },
+  { code:"COP", name:"Peso Colombiano",   symbol:"$",   locale:"es-CO" },
+  { code:"VES", name:"Bolívar Venezolano",symbol:"Bs.", locale:"es-VE" },
+  { code:"USD", name:"Dólar Americano",   symbol:"US$", locale:"en-US" },
+  { code:"EUR", name:"Euro",              symbol:"€",   locale:"de-DE" },
+  { code:"GBP", name:"Libra Esterlina",   symbol:"£",   locale:"en-GB" },
+  { code:"MXN", name:"Peso Mexicano",     symbol:"$",   locale:"es-MX" },
+  { code:"BOB", name:"Boliviano",         symbol:"Bs.", locale:"es-BO" },
+  { code:"GTQ", name:"Quetzal Guatemalteco",symbol:"Q", locale:"es-GT" },
+  { code:"HNL", name:"Lempira Hondureño", symbol:"L",   locale:"es-HN" },
+  { code:"NIO", name:"Córdoba Nicaragüense",symbol:"C$",locale:"es-NI" },
+  { code:"CRC", name:"Colón Costarricense",symbol:"₡",  locale:"es-CR" },
+  { code:"DOP", name:"Peso Dominicano",   symbol:"RD$", locale:"es-DO" },
+  { code:"JPY", name:"Yen Japonés",       symbol:"¥",   locale:"ja-JP" },
+  { code:"CNY", name:"Yuan Chino",        symbol:"¥",   locale:"zh-CN" },
+];
+
+const makeFmt = (currencyCode="ARS") => {
+  const cur = CURRENCIES.find(c=>c.code===currencyCode)||CURRENCIES[0];
+  return (n) => new Intl.NumberFormat(cur.locale, {
+    style:"currency", currency:cur.code,
+    minimumFractionDigits:cur.code==="PYG"||cur.code==="JPY"?0:2,
+    maximumFractionDigits:cur.code==="PYG"||cur.code==="JPY"?0:2
+  }).format(n);
+};
+
+let fmt = makeFmt("ARS");
 const today = () => new Date().toISOString().slice(0,10);
 const monthOf = (d) => d.slice(0,7);
 const currentMonth = () => today().slice(0,7);
@@ -38,6 +71,7 @@ const inRange = (date,from,to) => date>=from && date<=to;
 const currentYear = () => new Date().getFullYear().toString();
 const currentDay  = () => today();
 
+// Budget period helpers
 const getBudgetPeriodRange = (period="month") => {
   const now = new Date();
   const todayStr = now.toISOString().slice(0,10);
@@ -156,363 +190,128 @@ function CTooltip({ active,payload,label }) {
   );
 }
 
-// ── Chart Detail Modal ────────────────────────────────────────────────
-function ChartDetailModal({ type, pieData, barData, barLabel, catMap, monthExp, total, onClose }) {
-  const topCats = [...pieData].sort((a,b)=>b.value-a.value).slice(0,5);
+// ── Add/Edit Expense Modal ────────────────────────────────────────────
+function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
+  const isEdit = !!expense;
+  const [form, setForm] = useState({ amount:expense?.amount||"", catId:expense?.catId||categories[0]?.id||"", subCatId:expense?.subCatId||"", desc:expense?.desc||"", date:expense?.date||today() });
+  const set = (k,v) => setForm(f=>({...f,[k]:v}));
+  const [showNewCat, setShowNewCat] = useState(false);
+  const [showNewSub, setShowNewSub] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("💰");
+  const [newSubName, setNewSubName] = useState("");
+  const [amountDisplay, setAmountDisplay] = useState(expense?.amount||"");
 
-  return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(26,31,26,.55)",backdropFilter:"blur(8px)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center" }}>
-      <div style={{ background:T.surface,borderRadius:"24px 24px 0 0",padding:"28px 20px 36px",width:"100%",maxWidth:560,boxShadow:T.shadowLg,maxHeight:"85vh",overflowY:"auto" }}>
-        {/* Handle bar */}
-        <div style={{ width:40,height:4,background:T.border,borderRadius:2,margin:"0 auto 20px",cursor:"pointer" }} onClick={onClose}/>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
-          <span style={{ fontWeight:700,fontSize:17,color:T.text }}>
-            {type==="pie" ? "Distribución por categoría" : barLabel}
-          </span>
-          <button onClick={onClose} style={{ background:T.bg,border:"none",borderRadius:10,width:32,height:32,cursor:"pointer",color:T.muted,fontSize:16 }}>✕</button>
-        </div>
+  const cat = categories.find(c=>c.id===Number(form.catId));
+  const subcats = cat?.subcats||[];
+  const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾","🍕","🍺","☕","🍷","🥗","🏋️","🚗","⛽","💡","📱","🎵","⚽","🎓","💼","🏦","💳","🎁","🐶","🌿"];
 
-        {type==="pie" && (
-          <>
-            {/* Full donut */}
-            <div style={{ display:"flex",flexDirection:"column",alignItems:"center",marginBottom:20 }}>
-              <div style={{ position:"relative",width:220,height:220 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={62} outerRadius={100} paddingAngle={3}>
-                      {pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}
-                    </Pie>
-                    <Tooltip content={<CTooltip/>}/>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none" }}>
-                  <span style={{ fontSize:11,color:T.muted,fontWeight:600,letterSpacing:.5 }}>TOTAL</span>
-                  <span style={{ fontSize:16,fontWeight:800,color:T.accent }}>{fmt(total)}</span>
-                </div>
-              </div>
-            </div>
-            {/* Category list */}
-            <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-              {[...pieData].sort((a,b)=>b.value-a.value).map((d,i)=>{
-                const pct=total>0?((d.value/total)*100).toFixed(1):"0";
-                return (
-                  <div key={i} style={{ display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:T.bg,borderRadius:14 }}>
-                    <div style={{ width:36,height:36,borderRadius:10,background:`${d.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>
-                      {Object.values(catMap).find(c=>c.name===d.name)?.icon||"💰"}
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <p style={{ margin:0,fontSize:14,fontWeight:600,color:T.text }}>{d.name}</p>
-                      <div style={{ height:4,background:T.border,borderRadius:2,marginTop:5,overflow:"hidden" }}>
-                        <div style={{ height:"100%",width:`${pct}%`,background:d.color,borderRadius:2,transition:"width .5s" }}/>
-                      </div>
-                    </div>
-                    <div style={{ textAlign:"right",flexShrink:0 }}>
-                      <p style={{ margin:0,fontSize:14,fontWeight:700,color:T.accent }}>{fmt(d.value)}</p>
-                      <p style={{ margin:0,fontSize:11,color:T.subtle }}>{pct}%</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+  const handleAmountChange = (e) => {
+    const raw = e.target.value.replace(/[^0-9.]/g,"");
+    setAmountDisplay(raw);
+    set("amount", raw);
+  };
 
-        {type==="bar" && (
-          <>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={barData} barSize={14} margin={{ top:8,right:8,left:0,bottom:0 }}>
-                <CartesianGrid vertical={false} stroke={T.border} strokeDasharray="3 3"/>
-                <XAxis dataKey="day" tick={{ fontSize:11,fill:T.subtle }} axisLine={false} tickLine={false} interval="preserveStartEnd"/>
-                <YAxis tick={{ fontSize:11,fill:T.subtle }} axisLine={false} tickLine={false} tickFormatter={v=>v>=1000?`${(v/1000).toFixed(0)}k`:v}/>
-                <Tooltip content={<CTooltip/>} cursor={{ fill:`${T.accent}11` }}/>
-                <Bar dataKey="total" fill={T.accent} radius={[6,6,0,0]}/>
-              </BarChart>
-            </ResponsiveContainer>
+  const formatAmount = () => {
+    if(form.amount && !isNaN(Number(form.amount))) {
+      setAmountDisplay(fmt(Number(form.amount)));
+    }
+  };
 
-            {/* Line chart overlay */}
-            <div style={{ marginTop:16 }}>
-              <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:10 }}>Tendencia acumulada</p>
-              <ResponsiveContainer width="100%" height={100}>
-                <LineChart data={barData.reduce((acc,d,i)=>{
-                  const prev=acc[i-1]?.acum||0;
-                  return [...acc,{...d,acum:prev+d.total}];
-                },[])}>
-                  <Line type="monotone" dataKey="acum" stroke={T.accentMd} strokeWidth={2.5} dot={false}/>
-                  <Tooltip formatter={(v)=>[fmt(v),"Acumulado"]} contentStyle={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,fontSize:12 }}/>
-                  <XAxis dataKey="day" hide/>
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+  const unformatAmount = () => {
+    if(form.amount) setAmountDisplay(String(form.amount));
+  };
 
-            {/* Summary stats */}
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginTop:16 }}>
-              {[
-                { label:"Total", val:fmt(barData.reduce((s,d)=>s+d.total,0)) },
-                { label:"Promedio/día", val:fmt(barData.filter(d=>d.total>0).length>0 ? barData.reduce((s,d)=>s+d.total,0)/barData.filter(d=>d.total>0).length : 0) },
-                { label:"Días con gasto", val:barData.filter(d=>d.total>0).length },
-              ].map((s,i)=>(
-                <div key={i} style={{ background:T.bg,borderRadius:14,padding:"12px 10px",textAlign:"center" }}>
-                  <p style={{ margin:0,fontSize:10,color:T.muted,fontWeight:600,letterSpacing:.5,textTransform:"uppercase" }}>{s.label}</p>
-                  <p style={{ margin:"6px 0 0",fontSize:15,fontWeight:700,color:T.accent }}>{s.val}</p>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+  const addNewCat = () => {
+    if(!newCatName.trim()) return;
+    const newCat = { id:Date.now(), name:newCatName.trim(), icon:newCatIcon, color:PALETTE[categories.length%PALETTE.length], subcats:[] };
+    onAddCategory(newCat);
+    set("catId", newCat.id);
+    setNewCatName(""); setShowNewCat(false);
+  };
 
-// ── Mini Chart Cards ─────────────────────────────────────────────────
-function MiniDonutCard({ pieData, total, onClick }) {
-  const top3 = [...pieData].sort((a,b)=>b.value-a.value).slice(0,3);
-  return (
-    <div onClick={onClick} style={{ background:T.surface,borderRadius:20,padding:"18px 16px",boxShadow:T.shadow,cursor:"pointer",transition:"transform .2s,box-shadow .2s",flex:1,minWidth:0 }}
-      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=T.shadowLg; }}
-      onMouseLeave={e=>{ e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow=T.shadow; }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-        <span style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase" }}>Por categoría</span>
-        <span style={{ fontSize:10,color:T.subtle }}>ver más →</span>
-      </div>
-      {pieData.length===0
-        ? <div style={{ height:100,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:12 }}>Sin datos</div>
-        : (
-          <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            {/* Mini donut */}
-            <div style={{ position:"relative",flexShrink:0,width:80,height:80 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" cx="50%" cy="50%" innerRadius={24} outerRadius={38} paddingAngle={2} startAngle={90} endAngle={-270}>
-                    {pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none" }}>
-                <span style={{ fontSize:9,fontWeight:800,color:T.accent,textAlign:"center",lineHeight:1.2 }}>{pieData.length}<br/>cat</span>
-              </div>
-            </div>
-            {/* Top 3 list */}
-            <div style={{ flex:1,minWidth:0 }}>
-              {top3.map((d,i)=>{
-                const pct=total>0?((d.value/total)*100).toFixed(0):"0";
-                return (
-                  <div key={i} style={{ marginBottom:i<top3.length-1?8:0 }}>
-                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3 }}>
-                      <span style={{ fontSize:12,color:T.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"60%" }}>{d.name}</span>
-                      <span style={{ fontSize:11,color:T.muted,flexShrink:0 }}>{pct}%</span>
-                    </div>
-                    <div style={{ height:3,background:T.border,borderRadius:2,overflow:"hidden" }}>
-                      <div style={{ height:"100%",width:`${pct}%`,background:d.color,borderRadius:2 }}/>
-                    </div>
-                  </div>
-                );
-              })}
-              {pieData.length>3 && <span style={{ fontSize:10,color:T.subtle }}>+{pieData.length-3} más</span>}
-            </div>
-          </div>
-        )
-      }
-    </div>
-  );
-}
-
-function MiniBarCard({ barData, barLabel, onClick }) {
-  const maxVal = Math.max(...barData.map(d=>d.total),1);
-  const activeDays = barData.filter(d=>d.total>0);
-  return (
-    <div onClick={onClick} style={{ background:T.surface,borderRadius:20,padding:"18px 16px",boxShadow:T.shadow,cursor:"pointer",transition:"transform .2s,box-shadow .2s",flex:1,minWidth:0 }}
-      onMouseEnter={e=>{ e.currentTarget.style.transform="translateY(-2px)"; e.currentTarget.style.boxShadow=T.shadowLg; }}
-      onMouseLeave={e=>{ e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow=T.shadow; }}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
-        <span style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:"75%" }}>{barLabel}</span>
-        <span style={{ fontSize:10,color:T.subtle,flexShrink:0 }}>ver más →</span>
-      </div>
-      {activeDays.length===0
-        ? <div style={{ height:80,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:12 }}>Sin datos</div>
-        : (
-          <>
-            {/* Mini bars — show subset for readability */}
-            <div style={{ display:"flex",alignItems:"flex-end",gap:2,height:64,marginBottom:10 }}>
-              {(barData.length>20 ? barData.filter((_,i)=>i%Math.ceil(barData.length/20)===0) : barData).map((d,i)=>{
-                const h=maxVal>0?Math.max((d.total/maxVal)*56,d.total>0?4:1):1;
-                return (
-                  <div key={i} style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",height:64 }}>
-                    <div style={{ width:"100%",height:h,background:d.total>0?T.accent:T.border,borderRadius:"2px 2px 0 0",transition:"height .3s" }}/>
-                  </div>
-                );
-              })}
-            </div>
-            {/* Line */}
-            <div style={{ height:2,background:`linear-gradient(90deg,${T.accentMd},${T.accent})`,borderRadius:1,marginBottom:10 }}/>
-            {/* Stats row */}
-            <div style={{ display:"flex",justifyContent:"space-between" }}>
-              <div>
-                <p style={{ margin:0,fontSize:10,color:T.subtle,fontWeight:600 }}>DÍAS ACTIVOS</p>
-                <p style={{ margin:"2px 0 0",fontSize:14,fontWeight:700,color:T.accent }}>{activeDays.length}</p>
-              </div>
-              <div style={{ textAlign:"right" }}>
-                <p style={{ margin:0,fontSize:10,color:T.subtle,fontWeight:600 }}>PICO</p>
-                <p style={{ margin:"2px 0 0",fontSize:14,fontWeight:700,color:T.accent }}>{fmt(maxVal)}</p>
-              </div>
-            </div>
-          </>
-        )
-      }
-    </div>
-  );
-}
-
-// ── Scan Ticket Modal ─────────────────────────────────────────────────
-function ScanModal({ categories, onSave, onClose }) {
-  const [step, setStep] = useState("pick"); // pick | scanning | confirm | error
-  const [preview, setPreview] = useState(null);
-  const [extracted, setExtracted] = useState(null);
-  const [errMsg, setErrMsg] = useState("");
-  const [form, setForm] = useState({ amount: "", catId: categories[0]?.id || "", subCatId: "", desc: "", date: today() });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const cat = categories.find(c => c.id === Number(form.catId));
-  const subcats = cat?.subcats || [];
-
-  const handleFile = async (file) => {
-    if (!file) return;
-    // Preview
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target.result;
-      setPreview(dataUrl);
-      setStep("scanning");
-
-      // Extract base64
-      const base64 = dataUrl.split(",")[1];
-      const mediaType = file.type || "image/jpeg";
-
-      try {
-        const res = await fetch("/api/scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: base64, mediaType }),
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        setExtracted(data);
-        setForm(f => ({
-          ...f,
-          amount: data.amount ?? "",
-          desc: data.description || "",
-          date: data.date || today(),
-        }));
-        setStep("confirm");
-      } catch (err) {
-        setErrMsg("No se pudo leer la imagen. Ingresá los datos manualmente.");
-        setStep("error");
-      }
-    };
-    reader.readAsDataURL(file);
+  const addNewSub = () => {
+    if(!newSubName.trim()||!cat) return;
+    const newSub = { id:Date.now(), name:newSubName.trim() };
+    onAddCategory({...cat, subcats:[...cat.subcats, newSub]}, true);
+    set("subCatId", newSub.id);
+    setNewSubName(""); setShowNewSub(false);
   };
 
   const save = () => {
-    if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
-    onSave({ id: Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
-    onClose();
-  };
-
-  return (
-    <Modal title="Escanear ticket" onClose={onClose}>
-      {step === "pick" && (
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 56, marginBottom: 12 }}>📷</div>
-          <p style={{ color: T.muted, fontSize: 13, marginBottom: 24 }}>Sacá una foto o subí una imagen del ticket, factura o captura de pago</p>
-          <label style={{ display: "block", background: T.accent, color: "#fff", borderRadius: 12, padding: "12px 20px", cursor: "pointer", fontWeight: 600, fontSize: 14, marginBottom: 10 }}>
-            📁 Elegir imagen
-            <input type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={e => handleFile(e.target.files[0])} />
-          </label>
-          <Btn variant="ghost" onClick={onClose} style={{ width: "100%" }}>Cancelar</Btn>
-        </div>
-      )}
-
-      {step === "scanning" && (
-        <div style={{ textAlign: "center", padding: "20px 0" }}>
-          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 12, marginBottom: 20 }} />}
-          <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-          <p style={{ color: T.muted, fontSize: 14, fontWeight: 600 }}>Leyendo el ticket...</p>
-          <p style={{ color: T.subtle, fontSize: 12 }}>Claude está analizando la imagen</p>
-        </div>
-      )}
-
-      {step === "error" && (
-        <div style={{ textAlign: "center", padding: "10px 0" }}>
-          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginBottom: 16 }} />}
-          <p style={{ color: T.warn, fontSize: 13, marginBottom: 20 }}>⚠️ {errMsg}</p>
-          <Inp label="Monto ($)" type="number" placeholder="0" value={form.amount} onChange={e => set("amount", e.target.value)} />
-          <Sel label="Categoría" value={form.catId} onChange={e => set("catId", e.target.value)}>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </Sel>
-          <Inp label="Descripción" placeholder="ej: supermercado" value={form.desc} onChange={e => set("desc", e.target.value)} />
-          <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
-            <Btn onClick={save} style={{ flex: 1 }}>Guardar</Btn>
-          </div>
-        </div>
-      )}
-
-      {step === "confirm" && (
-        <div>
-          {preview && <img src={preview} alt="ticket" style={{ width: "100%", maxHeight: 160, objectFit: "contain", borderRadius: 12, marginBottom: 16, border: `1px solid ${T.border}` }} />}
-          <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>✅</span>
-            <span style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>Ticket leído — revisá y confirmá</span>
-          </div>
-          <Inp label="Monto ($)" type="number" value={form.amount} onChange={e => set("amount", e.target.value)} />
-          <Sel label="Categoría" value={form.catId} onChange={e => { set("catId", e.target.value); set("subCatId", ""); }}>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </Sel>
-          {subcats.length > 0 && (
-            <Sel label="Subcategoría (opcional)" value={form.subCatId} onChange={e => set("subCatId", e.target.value)}>
-              <option value="">— Sin subcategoría —</option>
-              {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </Sel>
-          )}
-          <Inp label="Descripción" value={form.desc} onChange={e => set("desc", e.target.value)} />
-          <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
-            <Btn onClick={save} style={{ flex: 1 }}>Guardar</Btn>
-          </div>
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-// ── Add/Edit Expense Modal ────────────────────────────────────────────
-function ExpenseModal({ expense,categories,onSave,onClose }) {
-  const isEdit=!!expense;
-  const [form,setForm]=useState({ amount:expense?.amount||"",catId:expense?.catId||categories[0]?.id||"",subCatId:expense?.subCatId||"",desc:expense?.desc||"",date:expense?.date||today() });
-  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
-  const cat=categories.find(c=>c.id===Number(form.catId));
-  const subcats=cat?.subcats||[];
-
-  const save=()=>{
     if(!form.amount||isNaN(Number(form.amount))||!form.catId) return;
-    onSave({ id:expense?.id||Date.now(),amount:Number(form.amount),catId:Number(form.catId),subCatId:form.subCatId?Number(form.subCatId):null,desc:form.desc,date:form.date });
+    onSave({ id:expense?.id||Date.now(), amount:Number(form.amount), catId:Number(form.catId), subCatId:form.subCatId?Number(form.subCatId):null, desc:form.desc, date:form.date });
     onClose();
   };
 
   return (
     <Modal title={isEdit?"Editar gasto":"Nuevo gasto"} onClose={onClose}>
-      <Inp label="Monto ($)" type="number" placeholder="0" value={form.amount} onChange={e=>set("amount",e.target.value)}/>
-      <Sel label="Categoría" value={form.catId} onChange={e=>{ set("catId",e.target.value); set("subCatId",""); }}>
-        {categories.map(c=><option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-      </Sel>
-      {subcats.length>0 && (
-        <Sel label="Subcategoría (opcional)" value={form.subCatId} onChange={e=>set("subCatId",e.target.value)}>
-          <option value="">— Sin subcategoría —</option>
-          {subcats.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-        </Sel>
-      )}
+      {/* Monto con formato contable */}
+      <div style={{ marginBottom:16 }}>
+        <label style={{ display:"block",fontSize:11,color:T.muted,marginBottom:6,fontWeight:600,letterSpacing:.8,textTransform:"uppercase" }}>Monto</label>
+        <input
+          value={amountDisplay}
+          onChange={handleAmountChange}
+          onFocus={unformatAmount}
+          onBlur={formatAmount}
+          placeholder="0,00"
+          inputMode="decimal"
+          style={{ width:"100%",background:T.bg,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"11px 14px",color:T.text,fontSize:18,fontWeight:700,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }}
+        />
+      </div>
+
+      {/* Categoría con opción de crear */}
+      <div style={{ marginBottom:16 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+          <label style={{ fontSize:11,color:T.muted,fontWeight:600,letterSpacing:.8,textTransform:"uppercase" }}>Categoría</label>
+          <button onClick={()=>setShowNewCat(!showNewCat)} style={{ background:"none",border:"none",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer" }}>
+            {showNewCat?"✕ Cancelar":"+ Nueva"}
+          </button>
+        </div>
+        {showNewCat ? (
+          <div style={{ background:T.accentLt,borderRadius:12,padding:12,marginBottom:8 }}>
+            <div style={{ display:"flex",gap:8,marginBottom:8 }}>
+              <select value={newCatIcon} onChange={e=>setNewCatIcon(e.target.value)} style={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px",fontSize:18 }}>
+                {icons.map(ic=><option key={ic}>{ic}</option>)}
+              </select>
+              <input placeholder="Nombre de la categoría" value={newCatName} onChange={e=>setNewCatName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNewCat()}
+                style={{ flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 12px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit" }}/>
+            </div>
+            <Btn onClick={addNewCat} style={{ width:"100%",padding:"8px" }}>Crear categoría</Btn>
+          </div>
+        ) : (
+          <select value={form.catId} onChange={e=>{ set("catId",e.target.value); set("subCatId",""); }}
+            style={{ width:"100%",background:T.bg,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"11px 14px",color:T.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }}>
+            {categories.map(c=><option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Subcategoría con opción de crear */}
+      <div style={{ marginBottom:16 }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
+          <label style={{ fontSize:11,color:T.muted,fontWeight:600,letterSpacing:.8,textTransform:"uppercase" }}>Subcategoría (opcional)</label>
+          {cat && <button onClick={()=>setShowNewSub(!showNewSub)} style={{ background:"none",border:"none",color:T.accent,fontSize:12,fontWeight:600,cursor:"pointer" }}>
+            {showNewSub?"✕ Cancelar":"+ Nueva"}
+          </button>}
+        </div>
+        {showNewSub ? (
+          <div style={{ background:T.accentLt,borderRadius:12,padding:12,marginBottom:8 }}>
+            <div style={{ display:"flex",gap:8 }}>
+              <input placeholder={`Subcategoría de ${cat?.name}`} value={newSubName} onChange={e=>setNewSubName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addNewSub()}
+                style={{ flex:1,background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,padding:"8px 12px",color:T.text,fontSize:14,outline:"none",fontFamily:"inherit" }}/>
+              <Btn onClick={addNewSub} style={{ padding:"8px 14px" }}>Crear</Btn>
+            </div>
+          </div>
+        ) : subcats.length>0 ? (
+          <select value={form.subCatId} onChange={e=>set("subCatId",e.target.value)}
+            style={{ width:"100%",background:T.bg,border:`1.5px solid ${T.border}`,borderRadius:12,padding:"11px 14px",color:T.text,fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"inherit" }}>
+            <option value="">— Sin subcategoría —</option>
+            {subcats.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        ) : <p style={{ fontSize:12,color:T.subtle,margin:0 }}>Esta categoría no tiene subcategorías. Tocá "+ Nueva" para agregar.</p>}
+      </div>
+
       <Inp label="Descripción (opcional)" placeholder="ej: almuerzo, uber..." value={form.desc} onChange={e=>set("desc",e.target.value)}/>
       <Inp label="Fecha" type="date" value={form.date} onChange={e=>set("date",e.target.value)}/>
       <div style={{ display:"flex",gap:10,marginTop:8 }}>
@@ -529,6 +328,8 @@ function BudgetModal({ budgets,categories,onSave,onClose }) {
   return (
     <Modal title="Presupuesto" onClose={onClose}>
       <p style={{ color:T.muted,fontSize:13,marginBottom:20 }}>Establecé límites de gasto y el período de reinicio.</p>
+
+      {/* Period selector */}
       <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:10 }}>Período de reinicio</p>
       <div style={{ display:"flex",gap:8,marginBottom:20 }}>
         {[["week","Semanal"],["biweekly","Quincenal"],["month","Mensual"]].map(([val,label])=>(
@@ -538,6 +339,7 @@ function BudgetModal({ budgets,categories,onSave,onClose }) {
           </button>
         ))}
       </div>
+
       <Inp label="Límite total ($)" type="number" placeholder="0 = sin límite" value={vals.__total||""} onChange={e=>setVals(v=>({...v,__total:e.target.value}))}/>
       <p style={{ fontSize:11,color:T.muted,fontWeight:700,letterSpacing:.8,textTransform:"uppercase",marginBottom:12 }}>Por categoría (opcional)</p>
       {categories.map(c=>(
@@ -851,6 +653,7 @@ export default function App() {
   const [expenses,setExpenses]     = useState([]);
   const [categories,setCategories] = useState(DEFAULT_CATS);
   const [budgets,setBudgets]       = useState({});
+  const [currency,setCurrencyState]= useState("ARS");
   const [modal,setModal]           = useState(null);
   const [view,setView]             = useState("dashboard");
   const [filterMonth,setFilterMonth] = useState(currentMonth());
@@ -860,7 +663,6 @@ export default function App() {
   const [filterDay,setFilterDay]    = useState(currentDay());
   const [selectedCat,setSelectedCat] = useState(null);
   const [editingExpense,setEditingExpense] = useState(null);
-  const [chartDetail,setChartDetail] = useState(null); // "pie" | "bar"
 
   useEffect(()=>{
     (async()=>{
@@ -868,9 +670,12 @@ export default function App() {
         const e=await storage.get("expenses"); if(e) setExpenses(JSON.parse(e.value));
         const c=await storage.get("categories"); if(c) setCategories(JSON.parse(c.value));
         const b=await storage.get("budgets"); if(b) setBudgets(JSON.parse(b.value));
+        const cur=await storage.get("currency"); if(cur) { setCurrencyState(cur.value); fmt=makeFmt(cur.value); }
       } catch {}
     })();
   },[]);
+
+  const saveCurrency=(code)=>{ setCurrencyState(code); fmt=makeFmt(code); storage.set("currency",code).catch(()=>{}); };
 
   const saveExpenses=(data)=>{ setExpenses(data); storage.set("expenses",JSON.stringify(data)).catch(()=>{}); };
   const saveCats    =(data)=>{ setCategories(data); storage.set("categories",JSON.stringify(data)).catch(()=>{}); };
@@ -879,6 +684,14 @@ export default function App() {
   const addExpense =(exp)=>saveExpenses([...expenses,exp]);
   const delExpense =(id) =>saveExpenses(expenses.filter(e=>e.id!==id));
   const editExpense=(upd)=>saveExpenses(expenses.map(e=>e.id===upd.id?upd:e));
+
+  // Inline category/subcategory creation from ExpenseModal
+  const addCategoryInline=(cat, isUpdate=false)=>{
+    let updated;
+    if(isUpdate) updated=categories.map(c=>c.id===cat.id?cat:c);
+    else updated=[...categories,cat];
+    saveCats(updated);
+  };
 
   const catMap=useMemo(()=>Object.fromEntries(categories.map(c=>[c.id,c])),[categories]);
   const weekRange=useMemo(()=>getWeekRange(weekOffset),[weekOffset]);
@@ -902,22 +715,26 @@ export default function App() {
   const pieData=useMemo(()=>{ const acc={}; monthExp.forEach(e=>{ acc[e.catId]=(acc[e.catId]||0)+e.amount; }); return Object.entries(acc).map(([id,val])=>({ name:catMap[id]?.name||"?",value:val,color:catMap[id]?.color||T.accent })); },[monthExp,catMap]);
   const barData=useMemo(()=>{
     if(filterMode==="day"){
-      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map((label,i)=>({
-        day:label, total:i===0?monthExp.reduce((s,e)=>s+e.amount,0):0
-      }));
+      // Single day — mostrar por hora (agrupado en bloques de 4hs)
+      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map(label=>({
+        day:label, total:0 // sin timestamp en expenses, mostramos el total del día en el primer bloque
+      })).map((b,i)=>i===0?{...b,total:monthExp.reduce((s,e)=>s+e.amount,0)}:b);
     }
     if(filterMode==="week"){
+      // 7 días de la semana seleccionada
       const days=[]; const start=new Date(weekRange.from);
       for(let i=0;i<7;i++){ const d=new Date(start); d.setDate(start.getDate()+i); days.push(d.toISOString().slice(0,10)); }
       return days.map(d=>({ day:d.slice(5), total:expenses.filter(e=>e.date===d).reduce((s,e)=>s+e.amount,0) }));
     }
     if(filterMode==="year"){
+      // 12 meses del año
       const meses=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
       return meses.map((name,i)=>{
         const m=`${filterYear}-${String(i+1).padStart(2,"0")}`;
         return { day:name, total:expenses.filter(e=>monthOf(e.date)===m).reduce((s,e)=>s+e.amount,0) };
       });
     }
+    // month — días del mes seleccionado
     const [yr,mo]=filterMonth.split("-").map(Number);
     const daysInMonth=new Date(yr,mo,0).getDate();
     return Array.from({length:daysInMonth},(_,i)=>{
@@ -927,12 +744,12 @@ export default function App() {
   },[expenses,filterMode,filterMonth,filterYear,filterDay,weekRange,monthExp]);
 
   const barLabel=useMemo(()=>{
-    if(filterMode==="day")   return `Día ${filterDay}`;
-    if(filterMode==="week")  return `Semana`;
-    if(filterMode==="year")  return `Año ${filterYear}`;
-    return `Mes ${filterMonth}`;
+    if(filterMode==="day")   return `Distribución del ${filterDay}`;
+    if(filterMode==="week")  return `Semana ${weekRange.from} → ${weekRange.to}`;
+    if(filterMode==="year")  return `Meses de ${filterYear}`;
+    return `Días de ${filterMonth}`;
   },[filterMode,filterDay,filterMonth,filterYear,weekRange]);
-
+  const catAlerts=useMemo(()=>categories.filter(c=>{ const limit=Number(budgets[c.id]); if(!limit) return false; const spent=monthExp.filter(e=>e.catId===c.id).reduce((s,e)=>s+e.amount,0); return spent>=limit*0.9; }),[categories,budgets,monthExp]);
   const months=useMemo(()=>{ const set=new Set(expenses.map(e=>monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); },[expenses]);
   const years=useMemo(()=>{ const set=new Set(expenses.map(e=>e.date.slice(0,4))); set.add(currentYear()); return [...set].sort().reverse(); },[expenses]);
 
@@ -948,10 +765,13 @@ export default function App() {
           <span style={{ fontSize:26 }}>💸</span>
           <span style={{ fontWeight:800,fontSize:17,color:T.yellow,letterSpacing:"-.3px" }}>Mis Gastos</span>
         </div>
-        <div style={{ display:"flex",gap:6 }}>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️</Btn>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯</Btn>
-          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("scan")}>📷</Btn>
+        <div style={{ display:"flex",gap:6,alignItems:"center",flexWrap:"wrap" }}>
+          <select value={currency} onChange={e=>saveCurrency(e.target.value)}
+            style={{ background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.3)",borderRadius:10,padding:"6px 8px",color:"#fff",fontSize:12,fontFamily:"inherit",fontWeight:600,cursor:"pointer",maxWidth:90 }}>
+            {CURRENCIES.map(c=><option key={c.code} value={c.code} style={{ background:T.accent,color:"#fff" }}>{c.symbol} {c.code}</option>)}
+          </select>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("cats")}>🏷️ Categorías</Btn>
+          <Btn variant="ghost" style={{ padding:"6px 10px",fontSize:12,color:"#fff",border:"1px solid rgba(255,255,255,.3)" }} onClick={()=>setModal("budget")}>🎯 Presupuesto</Btn>
           <Btn style={{ padding:"6px 12px",fontSize:12,background:T.yellow,color:T.accent }} onClick={()=>setModal("add")}>+ Gastos</Btn>
         </div>
       </div>
@@ -1047,10 +867,28 @@ export default function App() {
               </Card>
             )}
 
-            {/* ── Mini Chart Cards (mobile-friendly, tap to expand) ── */}
-            <div style={{ display:"flex",gap:14,marginBottom:20 }}>
-              <MiniDonutCard pieData={pieData} total={totalMonth} onClick={()=>setChartDetail("pie")}/>
-              <MiniBarCard barData={barData} barLabel={barLabel} onClick={()=>setChartDetail("bar")}/>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20 }}>
+              <Card>
+                <SectionLabel>Por categoría</SectionLabel>
+                {pieData.length===0
+                  ? <div style={{ height:160,display:"flex",alignItems:"center",justifyContent:"center",color:T.subtle,fontSize:13 }}>Sin datos</div>
+                  : <ResponsiveContainer width="100%" height={160}><PieChart><Pie data={pieData} dataKey="value" cx="50%" cy="50%" outerRadius={70} paddingAngle={4}>{pieData.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip content={<CTooltip/>}/></PieChart></ResponsiveContainer>
+                }
+                <div style={{ display:"flex",flexWrap:"wrap",gap:"5px 12px",marginTop:10 }}>
+                  {pieData.map((d,i)=><div key={i} style={{ display:"flex",alignItems:"center",gap:5 }}><span style={{ width:8,height:8,borderRadius:2,background:d.color,display:"inline-block" }}/><span style={{ fontSize:11,color:T.muted }}>{d.name}</span></div>)}
+                </div>
+              </Card>
+              <Card>
+                <SectionLabel>{filterMode==="day"?"Total del día":filterMode==="week"?"Por día de semana":filterMode==="year"?"Por mes":"Por día del mes"}</SectionLabel>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={barData} barSize={filterMode==="year"?18:filterMode==="month"?8:12}>
+                    <XAxis dataKey="day" tick={{ fontSize:10,fill:T.subtle }} axisLine={false} tickLine={false} interval={filterMode==="month"?2:0}/>
+                    <YAxis hide/>
+                    <Tooltip content={<CTooltip/>} cursor={{ fill:`${T.accent}11` }}/>
+                    <Bar dataKey="total" fill={T.accent} radius={[4,4,0,0]}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              </Card>
             </div>
 
             {categories.filter(c=>Number(budgets[c.id])>0).length>0&&(
@@ -1123,13 +961,11 @@ export default function App() {
         )}
       </div>
 
-      {modal==="scan"    &&<ScanModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
-      {modal==="add"    &&<ExpenseModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)}/>}
+      {modal==="add"    &&<ExpenseModal categories={categories} onSave={addExpense} onClose={()=>setModal(null)} onAddCategory={addCategoryInline}/>}
       {modal==="budget" &&<BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={()=>setModal(null)}/>}
       {modal==="cats"   &&<CatModal categories={categories} onChange={saveCats} onClose={()=>setModal(null)}/>}
       {selectedCat      &&<CatDetailModal cat={selectedCat} expenses={monthExp} onClose={()=>setSelectedCat(null)}/>}
-      {editingExpense    &&<ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={()=>setEditingExpense(null)}/>}
-      {chartDetail      &&<ChartDetailModal type={chartDetail} pieData={pieData} barData={barData} barLabel={barLabel} catMap={catMap} monthExp={monthExp} total={totalMonth} onClose={()=>setChartDetail(null)}/>}
+      {editingExpense    &&<ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={()=>setEditingExpense(null)} onAddCategory={addCategoryInline}/>}
     </div>
   );
 }
