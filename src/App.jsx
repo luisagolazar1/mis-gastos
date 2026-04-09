@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import CSV_DATA_EMBEDDED_IMPORT, { expandEmbedded as expandEmbeddedImport } from './data.js';
 
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║         FXCA16 — SISTEMA COMBINADO                  ║
