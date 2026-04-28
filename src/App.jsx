@@ -2,7 +2,6 @@ import { storage } from "./firebase.js";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
-// ── Global CSS animations ─────────────────────────────────────────────
 const ANIM_STYLES = `
 @keyframes fadeSlideUp {
   from { opacity: 0; transform: translateY(18px); }
@@ -25,42 +24,22 @@ const ANIM_STYLES = `
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes fabPulse {
-  0%,100% { box-shadow: 0 4px 18px rgba(244,196,48,.5); }
-  50%      { box-shadow: 0 4px 28px rgba(244,196,48,.8); }
+  0%,100% { box-shadow: 0 4px 18px rgba(26,188,156,.5); }
+  50%      { box-shadow: 0 4px 28px rgba(26,188,156,.8); }
 }
 `;
 
-function GlobalStyles() {
-  return <style>{ANIM_STYLES}</style>;
-}
+function GlobalStyles() { return <style>{ANIM_STYLES}</style>; }
 
-// ── useAnimatedMount: returns animation style with stagger ────────────
-function useAnimatedMount(delay = 0) {
-  return { animation: `fadeSlideUp .45s cubic-bezier(.22,.68,0,1.2) ${delay}ms both` };
-}
-
-// ── Design tokens ─────────────────────────────────────────────────────
 const T = {
-  bg:       "#c8e6c8",
-  surface:  "#e8f5e8",
-  border:   "#a5d0a5",
-  text:     "#1a3a1a",
-  muted:    "#4a7a4a",
-  subtle:   "#7aaa7a",
-  accent:   "#2d6a2d",
-  accentLt: "#d4ead4",
-  accentMd: "#4a9a4a",
-  warn:     "#c0392b",
-  warnLt:   "#fdecea",
-  orange:   "#d35400",
-  yellow:   "#f4c430",
-  shadow:   "0 2px 12px rgba(45,106,45,.12)",
-  shadowLg: "0 8px 32px rgba(45,106,45,.18)",
+  bg: "#c8e6c8", surface: "#e8f5e8", border: "#a5d0a5", text: "#1a3a1a",
+  muted: "#4a7a4a", subtle: "#7aaa7a", accent: "#2d6a2d", accentLt: "#d4ead4",
+  accentMd: "#4a9a4a", warn: "#c0392b", warnLt: "#fdecea", orange: "#d35400",
+  yellow: "#f4c430", shadow: "0 2px 12px rgba(45,106,45,.12)", shadowLg: "0 8px 32px rgba(45,106,45,.18)",
 };
 
 const PALETTE = ["#e74c3c","#3498db","#f39c12","#9b59b6","#1abc9c","#e67e22","#2ecc71","#e91e63","#00bcd4","#ff5722"];
 
-// ── Currencies ────────────────────────────────────────────────────────
 const CURRENCIES = [
   { code:"ARS", name:"Peso Argentino",      symbol:"$",   locale:"es-AR" },
   { code:"UYU", name:"Peso Uruguayo",        symbol:"$U",  locale:"es-UY" },
@@ -141,40 +120,21 @@ const getBudgetPeriodRange = (period = "month") => {
 };
 
 const exportCSV = (expenses, catMap) => {
-  // Escape cell: wrap in quotes if contains separator, quote or newline
   const esc = (val) => {
     const s = String(val ?? "");
-    return s.includes(";") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"` : s;
+    return s.includes(";") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const rows = [
-    ["Fecha", "Categoría", "Subcategoría", "Descripción", "Monto"],
-  ];
-  [...expenses]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .forEach(e => {
-      const cat = catMap[e.catId];
-      const sub = cat?.subcats?.find(s => s.id === e.subCatId);
-      // Format amount as local number string (comma decimal, no currency symbol)
-      const amountStr = Number(e.amount).toLocaleString("es-AR", {
-        minimumFractionDigits: 2, maximumFractionDigits: 2
-      });
-      rows.push([
-        e.date,
-        cat?.name || "Sin categoría",
-        sub?.name || "",
-        e.desc || "",
-        amountStr,
-      ]);
-    });
-  // Use semicolon separator — standard for Spanish-locale Excel
+  const rows = [["Fecha", "Categoría", "Subcategoría", "Descripción", "Monto"]];
+  [...expenses].sort((a, b) => b.date.localeCompare(a.date)).forEach(e => {
+    const cat = catMap[e.catId];
+    const sub = cat?.subcats?.find(s => s.id === e.subCatId);
+    const amountStr = Number(e.amount).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    rows.push([e.date, cat?.name || "Sin categoría", sub?.name || "", e.desc || "", amountStr]);
+  });
   const csv = rows.map(r => r.map(esc).join(";")).join("\r\n");
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `mis-gastos-${today()}.csv`;
-  a.click();
+  const a = document.createElement("a"); a.href = url; a.download = `mis-gastos-${today()}.csv`; a.click();
   URL.revokeObjectURL(url);
 };
 
@@ -186,6 +146,52 @@ const DEFAULT_CATS = [
   { id: 5, name: "Ropa",            color: PALETTE[4], icon: "👕", subcats: [] },
   { id: 6, name: "Hogar",           color: PALETTE[5], icon: "🏠", subcats: [] },
 ];
+
+// ── SVG Nav Icons ─────────────────────────────────────────────────────
+function IconDashboard({ active }) {
+  const bg = active ? "#e74c3c" : "#dde8dd";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill={bg}/>
+      <rect x="7" y="17" width="4" height="7" rx="1" fill="white"/>
+      <rect x="13" y="12" width="4" height="12" rx="1" fill="white"/>
+      <rect x="19" y="7" width="4" height="17" rx="1" fill="white"/>
+    </svg>
+  );
+}
+
+function IconHistory({ active }) {
+  const bg = active ? "#1abc9c" : "#dde8dd";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill={bg}/>
+      <path d="M11 8h8a1 1 0 011 1v13l-4.5-2.8L11 22V9a1 1 0 011-1z" fill="white"/>
+    </svg>
+  );
+}
+
+function IconShopping({ active }) {
+  const bg = active ? "#2c3e50" : "#dde8dd";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill={bg}/>
+      <path d="M7 9h2.5l1.5 1.5M9.5 9L11 14h9l-1.5 6h-8L9 14" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="12" cy="22" r="1.2" fill="white"/>
+      <circle cx="18" cy="22" r="1.2" fill="white"/>
+    </svg>
+  );
+}
+
+function IconExport() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill="#1abc9c"/>
+      <path d="M15 7v11" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M10 13l5 5 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <rect x="8" y="20" width="14" height="2.5" rx="1.2" fill="white"/>
+    </svg>
+  );
+}
 
 // ── UI primitives ─────────────────────────────────────────────────────
 function Modal({ title, onClose, children, wide = false }) {
@@ -213,12 +219,10 @@ function Inp({ label, ...props }) {
   );
 }
 
-// ── Accounting format input ───────────────────────────────────────────
 function AmountInp({ label, value, onChange, placeholder = "0,00", style = {}, inputStyle = {} }) {
   const [display, setDisplay] = useState("");
   const [focused, setFocused] = useState(false);
 
-  // Sync display when value changes externally and not focused
   useEffect(() => {
     if (!focused) {
       if (value !== "" && value !== undefined && !isNaN(Number(value)) && Number(value) > 0) {
@@ -231,39 +235,22 @@ function AmountInp({ label, value, onChange, placeholder = "0,00", style = {}, i
 
   const handleChange = (e) => {
     const raw = e.target.value.replace(/[^0-9.]/g, "");
-    setDisplay(raw);
-    onChange(raw);
+    setDisplay(raw); onChange(raw);
   };
-
-  const handleFocus = () => {
-    setFocused(true);
-    // Show raw number when editing
-    setDisplay(value ? String(value) : "");
-  };
-
+  const handleFocus = () => { setFocused(true); setDisplay(value ? String(value) : ""); };
   const handleBlur = () => {
     setFocused(false);
-    if (value && !isNaN(Number(value)) && Number(value) > 0) {
-      setDisplay(fmt(Number(value)));
-    } else {
-      setDisplay("");
-    }
+    if (value && !isNaN(Number(value)) && Number(value) > 0) setDisplay(fmt(Number(value)));
+    else setDisplay("");
   };
 
   return (
     <div style={{ marginBottom: 14, ...style }}>
       {label && <label style={{ display: "block", fontSize: 11, color: T.muted, marginBottom: 5, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>{label}</label>}
-      <input
-        value={display}
-        onChange={handleChange}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        placeholder={placeholder}
-        inputMode="decimal"
+      <input value={display} onChange={handleChange} placeholder={placeholder} inputMode="decimal"
         style={{ width: "100%", background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "10px 13px", color: T.text, fontSize: 16, fontWeight: 700, outline: "none", boxSizing: "border-box", fontFamily: "inherit", transition: "border-color .2s", ...inputStyle }}
         onFocus={e => { e.target.style.borderColor = T.accent; handleFocus(); }}
-        onBlur={e => { e.target.style.borderColor = T.border; handleBlur(); }}
-      />
+        onBlur={e => { e.target.style.borderColor = T.border; handleBlur(); }} />
     </div>
   );
 }
@@ -291,10 +278,8 @@ function Btn({ children, variant = "primary", style = {}, ...props }) {
     const radius = diameter / 2;
     const rect = btn.getBoundingClientRect();
     circle.style.cssText = `width:${diameter}px;height:${diameter}px;left:${e.clientX - rect.left - radius}px;top:${e.clientY - rect.top - radius}px;position:absolute;border-radius:50%;background:rgba(255,255,255,.35);animation:ripple .5s linear;pointer-events:none`;
-    btn.style.position = "relative";
-    btn.style.overflow = "hidden";
-    btn.appendChild(circle);
-    setTimeout(() => circle.remove(), 500);
+    btn.style.position = "relative"; btn.style.overflow = "hidden";
+    btn.appendChild(circle); setTimeout(() => circle.remove(), 500);
     props.onClick?.(e);
   };
   return <button {...props} onClick={handleClick} style={{ padding: "10px 18px", borderRadius: 12, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 14, fontFamily: "inherit", transition: "opacity .15s,transform .1s,box-shadow .15s", position: "relative", overflow: "hidden", ...vars[variant], ...style }}
@@ -327,15 +312,11 @@ function CTooltip({ active, payload, label }) {
   );
 }
 
-// ── Currency Settings Modal ───────────────────────────────────────────
 function CurrencyModal({ currency, onSave, onClose }) {
   const [selected, setSelected] = useState(currency);
-  const cur = CURRENCIES.find(c => c.code === selected) || CURRENCIES[0];
   return (
     <Modal title="💱 Moneda" onClose={onClose}>
-      <p style={{ color: T.muted, fontSize: 13, marginBottom: 18 }}>
-        Elegí la moneda con la que querés registrar tus gastos. Afecta el formato de todos los montos.
-      </p>
+      <p style={{ color: T.muted, fontSize: 13, marginBottom: 18 }}>Elegí la moneda para registrar tus gastos.</p>
       <div style={{ maxHeight: 340, overflowY: "auto", marginBottom: 16 }}>
         {CURRENCIES.map(c => (
           <div key={c.code} onClick={() => setSelected(c.code)}
@@ -361,7 +342,6 @@ function CurrencyModal({ currency, onSave, onClose }) {
   );
 }
 
-// ── Add/Edit Expense Modal ────────────────────────────────────────────
 function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
   const isEdit = !!expense;
   const [form, setForm] = useState({
@@ -377,28 +357,21 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("💰");
   const [newSubName, setNewSubName] = useState("");
-
   const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾","🍕","🍺","☕","🍷","🥗","🏋️","🚗","⛽","💡","📱","🎵","⚽","🎓","💼","🏦","💳","🎁","🐶","🌿"];
-
   const cat = categories.find(c => c.id === Number(form.catId));
   const subcats = cat?.subcats || [];
 
   const addNewCat = () => {
     if (!newCatName.trim()) return;
     const newCat = { id: Date.now(), name: newCatName.trim(), icon: newCatIcon, color: PALETTE[categories.length % PALETTE.length], subcats: [] };
-    onAddCategory(newCat);
-    set("catId", newCat.id);
-    setNewCatName(""); setShowNewCat(false);
+    onAddCategory(newCat); set("catId", newCat.id); setNewCatName(""); setShowNewCat(false);
   };
-
   const addNewSub = () => {
     if (!newSubName.trim() || !cat) return;
     const newSub = { id: Date.now(), name: newSubName.trim() };
     onAddCategory({ ...cat, subcats: [...cat.subcats, newSub] }, true);
-    set("subCatId", newSub.id);
-    setNewSubName(""); setShowNewSub(false);
+    set("subCatId", newSub.id); setNewSubName(""); setShowNewSub(false);
   };
-
   const save = () => {
     if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
     onSave({ id: expense?.id || Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
@@ -407,33 +380,21 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
 
   return (
     <Modal title={isEdit ? "Editar gasto" : "Nuevo gasto"} onClose={onClose}>
-      {/* Monto con formato contable */}
-      <AmountInp
-        label="Monto"
-        value={form.amount}
-        onChange={v => set("amount", v)}
-        placeholder="0,00"
-        inputStyle={{ fontSize: 22 }}
-      />
-
-      {/* Categoría con opción de crear */}
+      <AmountInp label="Monto" value={form.amount} onChange={v => set("amount", v)} placeholder="0,00" inputStyle={{ fontSize: 22 }} />
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
           <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Categoría</label>
-          <button onClick={() => { setShowNewCat(!showNewCat); setShowNewSub(false); }}
-            style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
+          <button onClick={() => { setShowNewCat(!showNewCat); setShowNewSub(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
             {showNewCat ? "✕ Cancelar" : "+ Nueva categoría"}
           </button>
         </div>
         {showNewCat ? (
           <div style={{ background: T.accentLt, borderRadius: 12, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <select value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)}
-                style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px", fontSize: 18, cursor: "pointer" }}>
+              <select value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px", fontSize: 18, cursor: "pointer" }}>
                 {icons.map(ic => <option key={ic}>{ic}</option>)}
               </select>
-              <input placeholder="Nombre de la categoría" value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addNewCat()}
+              <input placeholder="Nombre de la categoría" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewCat()}
                 style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
             <Btn onClick={addNewCat} style={{ width: "100%", padding: "8px" }}>✓ Crear categoría</Btn>
@@ -445,23 +406,17 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
           </select>
         )}
       </div>
-
-      {/* Subcategoría con opción de crear */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
           <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Subcategoría <span style={{ color: T.subtle, textTransform: "none", fontWeight: 400 }}>(opcional)</span></label>
-          {cat && (
-            <button onClick={() => { setShowNewSub(!showNewSub); setShowNewCat(false); }}
-              style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
-              {showNewSub ? "✕ Cancelar" : "+ Nueva subcategoría"}
-            </button>
-          )}
+          {cat && <button onClick={() => { setShowNewSub(!showNewSub); setShowNewCat(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
+            {showNewSub ? "✕ Cancelar" : "+ Nueva subcategoría"}
+          </button>}
         </div>
         {showNewSub ? (
           <div style={{ background: T.accentLt, borderRadius: 12, padding: 12, marginBottom: 8 }}>
             <div style={{ display: "flex", gap: 8 }}>
-              <input placeholder={`ej: Almuerzo, Supermercado...`} value={newSubName} onChange={e => setNewSubName(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && addNewSub()}
+              <input placeholder="ej: Almuerzo, Supermercado..." value={newSubName} onChange={e => setNewSubName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewSub()}
                 style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
               <Btn onClick={addNewSub} style={{ padding: "8px 14px" }}>✓ Crear</Btn>
             </div>
@@ -476,7 +431,6 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
           <p style={{ fontSize: 12, color: T.subtle, margin: 0, padding: "8px 0" }}>Sin subcategorías. Tocá "+ Nueva subcategoría" para agregar.</p>
         )}
       </div>
-
       <Inp label="Descripción (opcional)" placeholder="ej: almuerzo, uber..." value={form.desc} onChange={e => set("desc", e.target.value)} />
       <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
       <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
@@ -487,13 +441,11 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
   );
 }
 
-// ── Budget Modal ──────────────────────────────────────────────────────
 function BudgetModal({ budgets, categories, onSave, onClose }) {
   const [vals, setVals] = useState({ ...budgets });
   return (
     <Modal title="Presupuesto" onClose={onClose}>
       <p style={{ color: T.muted, fontSize: 13, marginBottom: 18 }}>Establecé límites de gasto y el período de reinicio.</p>
-
       <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Período de reinicio</p>
       <div style={{ display: "flex", gap: 8, marginBottom: 18 }}>
         {[["week", "Semanal"], ["biweekly", "Quincenal"], ["month", "Mensual"]].map(([val, label]) => (
@@ -503,27 +455,14 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
           </button>
         ))}
       </div>
-
-      <AmountInp
-        label="Límite total"
-        value={vals.__total || ""}
-        onChange={v => setVals(vs => ({ ...vs, __total: v }))}
-        placeholder="0,00 (sin límite)"
-      />
-
+      <AmountInp label="Límite total" value={vals.__total || ""} onChange={v => setVals(vs => ({ ...vs, __total: v }))} placeholder="0,00 (sin límite)" />
       <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Por categoría (opcional)</p>
       {categories.map(c => (
         <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <span style={{ fontSize: 20 }}>{c.icon}</span>
           <span style={{ color: T.text, fontSize: 14, flex: 1 }}>{c.name}</span>
           <div style={{ width: 130 }}>
-            <AmountInp
-              value={vals[c.id] || ""}
-              onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))}
-              placeholder="0,00"
-              style={{ marginBottom: 0 }}
-              inputStyle={{ fontSize: 14, fontWeight: 600 }}
-            />
+            <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 14, fontWeight: 600 }} />
           </div>
         </div>
       ))}
@@ -535,7 +474,6 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
   );
 }
 
-// ── Category Manager Modal ────────────────────────────────────────────
 function CatModal({ categories, onChange, onClose }) {
   const [cats, setCats] = useState(categories.map(c => ({ ...c, subcats: [...(c.subcats || [])] })));
   const [newName, setNewName] = useState(""); const [newIcon, setNewIcon] = useState("💰");
@@ -567,8 +505,7 @@ function CatModal({ categories, onChange, onClose }) {
               <span style={{ width: 12, height: 12, borderRadius: 4, background: c.color, display: "inline-block", flexShrink: 0 }} />
               <span style={{ fontSize: 18 }}>{c.icon}</span>
               <span style={{ color: T.text, flex: 1, fontSize: 14, fontWeight: 500 }}>{c.name}</span>
-              <button onClick={() => setExpandedCat(expandedCat === c.id ? null : c.id)}
-                style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              <button onClick={() => setExpandedCat(expandedCat === c.id ? null : c.id)} style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
                 {expandedCat === c.id ? "▲" : "▼"} subcats ({c.subcats.length})
               </button>
               <button onClick={() => delCat(c.id)} style={{ background: "none", border: "none", color: T.warn, cursor: "pointer", fontSize: 16 }}>✕</button>
@@ -582,8 +519,7 @@ function CatModal({ categories, onChange, onClose }) {
                   </div>
                 ))}
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  <input placeholder="Nueva subcategoría" value={newSubName} onChange={e => setNewSubName(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && addSub(c.id)}
+                  <input placeholder="Nueva subcategoría" value={newSubName} onChange={e => setNewSubName(e.target.value)} onKeyDown={e => e.key === "Enter" && addSub(c.id)}
                     style={{ flex: 1, background: T.surface, border: `1.5px solid ${T.border}`, borderRadius: 8, padding: "7px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: "inherit" }} />
                   <Btn onClick={() => addSub(c.id)} style={{ padding: "7px 14px", fontSize: 12 }}>+</Btn>
                 </div>
@@ -593,12 +529,10 @@ function CatModal({ categories, onChange, onClose }) {
         ))}
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
-        <select value={newIcon} onChange={e => setNewIcon(e.target.value)}
-          style={{ background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.text, fontSize: 18, cursor: "pointer" }}>
+        <select value={newIcon} onChange={e => setNewIcon(e.target.value)} style={{ background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.text, fontSize: 18, cursor: "pointer" }}>
           {icons.map(ic => <option key={ic}>{ic}</option>)}
         </select>
-        <input placeholder="Nombre de la categoría" value={newName} onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && addCat()}
+        <input placeholder="Nombre de la categoría" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCat()}
           style={{ flex: 1, background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
         <Btn onClick={addCat}>+</Btn>
       </div>
@@ -610,7 +544,6 @@ function CatModal({ categories, onChange, onClose }) {
   );
 }
 
-// ── Category Detail Modal ─────────────────────────────────────────────
 function CatDetailModal({ cat, expenses, onClose }) {
   const catExp = useMemo(() => [...expenses.filter(e => e.catId === cat.id)].sort((a, b) => b.date.localeCompare(a.date)), [expenses, cat]);
   const total = catExp.reduce((s, e) => s + e.amount, 0);
@@ -621,8 +554,7 @@ function CatDetailModal({ cat, expenses, onClose }) {
     return Object.entries(acc).map(([id, val], i) => {
       const sub = cat.subcats.find(s => s.id === Number(id));
       return { name: sub?.name || (id === "__sin__" ? "General" : "?"), value: val, color: PALETTE[i % PALETTE.length] };
-    }).filter(d => d.value > 0)
-      .sort((a, b) => b.value - a.value); // ← orden mayor a menor
+    }).filter(d => d.value > 0).sort((a, b) => b.value - a.value);
   }, [catExp, cat]);
 
   return (
@@ -630,7 +562,6 @@ function CatDetailModal({ cat, expenses, onClose }) {
       {subData.length > 0 && (
         <div style={{ marginBottom: 22 }}>
           <SectionLabel>Distribución por subcategoría</SectionLabel>
-          {/* Gráfico centrado */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <ResponsiveContainer width={160} height={160}>
               <PieChart>
@@ -641,7 +572,6 @@ function CatDetailModal({ cat, expenses, onClose }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          {/* Lista centrada, mayor a menor */}
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {subData.map((d, i) => (
               <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 10, background: i % 2 === 0 ? T.bg : "transparent" }}>
@@ -656,11 +586,8 @@ function CatDetailModal({ cat, expenses, onClose }) {
               </div>
             ))}
           </div>
-          {/* Barra de progreso por subcategoría */}
           <div style={{ marginTop: 14, height: 8, borderRadius: 6, overflow: "hidden", display: "flex", gap: 1 }}>
-            {subData.map((d, i) => (
-              <div key={i} style={{ flex: d.value, background: d.color, transition: "flex .4s" }} title={d.name} />
-            ))}
+            {subData.map((d, i) => <div key={i} style={{ flex: d.value, background: d.color, transition: "flex .4s" }} title={d.name} />)}
           </div>
         </div>
       )}
@@ -687,13 +614,11 @@ function CatDetailModal({ cat, expenses, onClose }) {
   );
 }
 
-// ── Squarified treemap (Bruls et al.) ────────────────────────────────
+// ── Squarified Treemap ────────────────────────────────────────────────
 function squarify(data, x, y, w, h) {
   const rects = [];
   const total = data.reduce((s, d) => s + d.value, 0);
   if (!total || !w || !h) return rects;
-
-  // Normalize values to fill the area
   const area = w * h;
   const nodes = data.map(d => ({ ...d, norm: (d.value / total) * area }));
 
@@ -703,7 +628,6 @@ function squarify(data, x, y, w, h) {
     const rMin = Math.min(...row.map(n => n.norm));
     return Math.max((width * width * rMax) / (s * s), (s * s) / (width * width * rMin));
   }
-
   function layoutRow(row, x, y, w, h, horiz) {
     const rowSum = row.reduce((s, n) => s + n.norm, 0);
     const rowSize = rowSum / (horiz ? h : w);
@@ -711,50 +635,36 @@ function squarify(data, x, y, w, h) {
     row.forEach(n => {
       const size = (n.norm / rowSum) * (horiz ? h : w);
       if (horiz) rects.push({ ...n, x, y: pos, w: rowSize, h: size });
-      else       rects.push({ ...n, x: pos, y, w: size, h: rowSize });
+      else rects.push({ ...n, x: pos, y, w: size, h: rowSize });
       pos += size;
     });
-    return horiz
-      ? { x: x + rowSize, y, w: w - rowSize, h }
-      : { x, y: y + rowSize, w, h: h - rowSize };
+    return horiz ? { x: x + rowSize, y, w: w - rowSize, h } : { x, y: y + rowSize, w, h: h - rowSize };
   }
-
   function place(nodes, x, y, w, h) {
     if (!nodes.length) return;
     if (nodes.length === 1) { rects.push({ ...nodes[0], x, y, w, h }); return; }
-
     const horiz = w >= h;
     const short = horiz ? h : w;
     let row = [], i = 0;
-
     while (i < nodes.length) {
       const next = nodes[i];
       const testRow = [...row, next];
-      if (row.length === 0 || worst(testRow, short) <= worst(row, short)) {
-        row = testRow; i++;
-      } else {
-        const rem = layoutRow(row, x, y, w, h, horiz);
-        place(nodes.slice(i), rem.x, rem.y, rem.w, rem.h);
-        return;
-      }
+      if (row.length === 0 || worst(testRow, short) <= worst(row, short)) { row = testRow; i++; }
+      else { const rem = layoutRow(row, x, y, w, h, horiz); place(nodes.slice(i), rem.x, rem.y, rem.w, rem.h); return; }
     }
     layoutRow(row, x, y, w, h, horiz);
   }
-
   place(nodes, x, y, w, h);
   return rects;
 }
 
-// Heat color: green → yellow → orange → red based on rank (0=lowest, 1=highest)
 function heatColor(rank) {
-  // rank 0..1 where 1 = most spending
-  if (rank < 0.25) return { bg: "#27ae60", text: "#fff", border: "#1e8449" }; // green
-  if (rank < 0.50) return { bg: "#f39c12", text: "#fff", border: "#d68910" }; // yellow/orange
-  if (rank < 0.75) return { bg: "#e67e22", text: "#fff", border: "#ca6f1e" }; // orange
-  return { bg: "#c0392b", text: "#fff", border: "#a93226" };                  // red
+  if (rank < 0.25) return { bg: "#27ae60", border: "#1e8449" };
+  if (rank < 0.50) return { bg: "#f39c12", border: "#d68910" };
+  if (rank < 0.75) return { bg: "#e67e22", border: "#ca6f1e" };
+  return { bg: "#c0392b", border: "#a93226" };
 }
 
-// ── Category Treemap (heatmap style) ─────────────────────────────────
 function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
   const [hovered, setHovered] = useState(null);
   const [dims, setDims] = useState({ w: 320, h: 260 });
@@ -772,18 +682,11 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
   }, []);
 
   const items = useMemo(() =>
-    categories
-      .map(c => ({ ...c, value: monthExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0) }))
-      .filter(c => c.value > 0)
-      .sort((a, b) => b.value - a.value),
+    categories.map(c => ({ ...c, value: monthExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0) }))
+      .filter(c => c.value > 0).sort((a, b) => b.value - a.value),
     [categories, monthExp]
   );
-
-  const rects = useMemo(() => {
-    if (!items.length || !dims.w) return [];
-    return squarify(items, 0, 0, dims.w, dims.h);
-  }, [items, dims]);
-
+  const rects = useMemo(() => !items.length || !dims.w ? [] : squarify(items, 0, 0, dims.w, dims.h), [items, dims]);
   const maxVal = items[0]?.value || 1;
   const minVal = items[items.length - 1]?.value || 0;
 
@@ -803,58 +706,36 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
         )}
       </div>
       <div ref={containerRef} style={{ width: "100%", position: "relative", height: dims.h, borderRadius: 12, overflow: "hidden", background: "#1a1a1a" }}>
-        {total === 0 ? (
-          <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <span style={{ fontSize: 36 }}>🌿</span>
-            <span style={{ color: T.subtle, fontSize: 14 }}>Agregá gastos para ver el mapa</span>
-          </div>
-        ) : rects.map((d, i) => {
-          const isHov = hovered === d.id;
-          const pct = (d.value / total * 100);
-          // rank 0=lowest spend, 1=highest spend
-          const rank = items.length > 1
-            ? (d.value - minVal) / (maxVal - minVal)
-            : 1;
-          const colors = heatColor(rank);
-          const showName = d.w > 52 && d.h > 36;
-          const showAmt  = d.w > 58 && d.h > 52;
-          const showPct  = d.w > 44 && d.h > 28;
-          const showIcon = d.w > 28 && d.h > 24;
-          const GAP = 2;
-          return (
-            <div key={d.id}
-              onMouseEnter={() => setHovered(d.id)}
-              onMouseLeave={() => setHovered(null)}
-              onClick={() => onCatClick && onCatClick(d)}
-              title={`${d.icon} ${d.name}: ${fmt(d.value)} (${pct.toFixed(1)}%)`}
-              style={{
-                position: "absolute",
-                left:   d.x + GAP,
-                top:    d.y + GAP,
-                width:  Math.max(d.w - GAP * 2, 2),
-                height: Math.max(d.h - GAP * 2, 2),
-                background: isHov ? colors.border : colors.bg,
-                border: `2px solid ${isHov ? "#fff" : colors.border}`,
-                borderRadius: 8,
-                cursor: "pointer",
-                display: "flex", flexDirection: "column",
-                alignItems: "center", justifyContent: "center",
-                overflow: "hidden", padding: 4, boxSizing: "border-box",
-                transition: "all .18s ease",
-                transform: isHov ? "scale(1.03)" : "scale(1)",
-                zIndex: isHov ? 3 : 1,
-                boxShadow: isHov ? `0 4px 20px rgba(0,0,0,.4)` : "none",
-                animation: `fadeIn .35s ${i * 25}ms both`,
-              }}>
-              {showIcon && <span style={{ fontSize: showName ? (d.w > 90 ? 20 : 14) : 10, lineHeight: 1, marginBottom: 1 }}>{d.icon}</span>}
-              {showName && <span style={{ fontSize: d.w > 90 ? 11 : 9, color: colors.text, fontWeight: 700, textAlign: "center", lineHeight: 1.2, maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>}
-              {showAmt  && <span style={{ fontSize: d.w > 90 ? 10 : 8, color: "rgba(255,255,255,.9)", fontWeight: 700, marginTop: 1 }}>{fmt(d.value)}</span>}
-              {showPct  && <span style={{ fontSize: 8, color: "rgba(255,255,255,.7)", marginTop: 1 }}>{pct.toFixed(0)}%</span>}
+        {total === 0
+          ? <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <span style={{ fontSize: 36 }}>🌿</span>
+              <span style={{ color: T.subtle, fontSize: 14 }}>Agregá gastos para ver el mapa</span>
             </div>
-          );
-        })}
+          : rects.map((d, i) => {
+            const isHov = hovered === d.id;
+            const pct = (d.value / total * 100);
+            const rank = items.length > 1 ? (d.value - minVal) / (maxVal - minVal) : 1;
+            const colors = heatColor(rank);
+            const showName = d.w > 52 && d.h > 36;
+            const showAmt = d.w > 58 && d.h > 52;
+            const showPct = d.w > 44 && d.h > 28;
+            const showIcon = d.w > 28 && d.h > 24;
+            const GAP = 2;
+            return (
+              <div key={d.id}
+                onMouseEnter={() => setHovered(d.id)} onMouseLeave={() => setHovered(null)}
+                onClick={() => onCatClick && onCatClick(d)}
+                title={`${d.icon} ${d.name}: ${fmt(d.value)} (${pct.toFixed(1)}%)`}
+                style={{ position: "absolute", left: d.x + GAP, top: d.y + GAP, width: Math.max(d.w - GAP * 2, 2), height: Math.max(d.h - GAP * 2, 2), background: isHov ? colors.border : colors.bg, border: `2px solid ${isHov ? "#fff" : colors.border}`, borderRadius: 8, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 4, boxSizing: "border-box", transition: "all .18s ease", transform: isHov ? "scale(1.03)" : "scale(1)", zIndex: isHov ? 3 : 1, boxShadow: isHov ? "0 4px 20px rgba(0,0,0,.4)" : "none", animation: `fadeIn .35s ${i * 25}ms both` }}>
+                {showIcon && <span style={{ fontSize: showName ? (d.w > 90 ? 20 : 14) : 10, lineHeight: 1, marginBottom: 1 }}>{d.icon}</span>}
+                {showName && <span style={{ fontSize: d.w > 90 ? 11 : 9, color: "#fff", fontWeight: 700, textAlign: "center", lineHeight: 1.2, maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>}
+                {showAmt && <span style={{ fontSize: d.w > 90 ? 10 : 8, color: "rgba(255,255,255,.9)", fontWeight: 700, marginTop: 1 }}>{fmt(d.value)}</span>}
+                {showPct && <span style={{ fontSize: 8, color: "rgba(255,255,255,.7)", marginTop: 1 }}>{pct.toFixed(0)}%</span>}
+              </div>
+            );
+          })
+        }
       </div>
-      {/* Legend */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px", marginTop: 10 }}>
         {items.map(d => {
           const rank = items.length > 1 ? (d.value - minVal) / (maxVal - minVal) : 1;
@@ -871,7 +752,6 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
   );
 }
 
-// ── Shopping List ─────────────────────────────────────────────────────
 function ShoppingList({ categories, onAddExpense }) {
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", qty: 1, price: "" });
@@ -891,7 +771,6 @@ function ShoppingList({ categories, onAddExpense }) {
   };
   const toggleCheck = (id) => setItems(prev => prev.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
   const delItem = (id) => setItems(prev => prev.filter(i => i.id !== id));
-
   const finishShopping = () => {
     if (!finalTotal || !catId) return;
     onAddExpense({ id: Date.now(), amount: finalTotal, catId: Number(catId), subCatId: null, desc: desc || "Lista de compras", date: today() });
@@ -903,35 +782,22 @@ function ShoppingList({ categories, onAddExpense }) {
     <div style={{ maxWidth: 600, margin: "0 auto" }}>
       <Card style={{ marginBottom: 14 }}>
         <SectionLabel>Agregar producto</SectionLabel>
-        {/* Mobile-friendly grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 60px auto", gap: 8, marginBottom: 8 }}>
-          <Inp label="Producto" placeholder="ej: Carne, Leche..." value={newItem.name}
-            onChange={e => setNewItem(n => ({ ...n, name: e.target.value }))}
-            style={{ marginBottom: 0 }} />
-          <Inp label="Cant." type="number" value={newItem.qty}
-            onChange={e => setNewItem(n => ({ ...n, qty: Number(e.target.value) || 1 }))}
-            style={{ marginBottom: 0 }} />
-          <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 0 }}>
+          <Inp label="Producto" placeholder="ej: Carne, Leche..." value={newItem.name} onChange={e => setNewItem(n => ({ ...n, name: e.target.value }))} style={{ marginBottom: 0 }} />
+          <Inp label="Cant." type="number" value={newItem.qty} onChange={e => setNewItem(n => ({ ...n, qty: Number(e.target.value) || 1 }))} style={{ marginBottom: 0 }} />
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
             <Btn onClick={addItem} style={{ padding: "10px 16px", height: 42 }}>+</Btn>
           </div>
         </div>
-        <AmountInp
-          label="Precio unitario"
-          value={newItem.price}
-          onChange={v => setNewItem(n => ({ ...n, price: v }))}
-          placeholder="0,00"
-          inputStyle={{ fontSize: 15 }}
-        />
+        <AmountInp label="Precio unitario" value={newItem.price} onChange={v => setNewItem(n => ({ ...n, price: v }))} placeholder="0,00" inputStyle={{ fontSize: 15 }} />
       </Card>
-
       <Card style={{ marginBottom: 14 }}>
         <SectionLabel>Lista ({items.length} productos)</SectionLabel>
         {items.length === 0
           ? <p style={{ color: T.subtle, fontSize: 13, textAlign: "center", padding: "22px 0" }}>Agregá productos para empezar</p>
           : items.map(item => (
             <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-              <input type="checkbox" checked={item.checked} onChange={() => toggleCheck(item.id)}
-                style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.accent, flexShrink: 0 }} />
+              <input type="checkbox" checked={item.checked} onChange={() => toggleCheck(item.id)} style={{ width: 18, height: 18, cursor: "pointer", accentColor: T.accent, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ fontSize: 14, color: item.checked ? T.subtle : T.text, textDecoration: item.checked ? "line-through" : "none", fontWeight: 500 }}>{item.name}</span>
                 <span style={{ fontSize: 12, color: T.subtle, marginLeft: 6 }}>×{item.qty}</span>
@@ -949,21 +815,13 @@ function ShoppingList({ categories, onAddExpense }) {
           </div>
         )}
       </Card>
-
       <Card>
         <SectionLabel>Finalizar compra</SectionLabel>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <button onClick={() => setUseManual(false)} style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${!useManual ? T.accent : T.border}`, background: !useManual ? T.accentLt : "transparent", color: !useManual ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13 }}>🧮 Automático</button>
           <button onClick={() => setUseManual(true)} style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${useManual ? T.accent : T.border}`, background: useManual ? T.accentLt : "transparent", color: useManual ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13 }}>✏️ Manual</button>
         </div>
-        {useManual && (
-          <AmountInp
-            label="Total gastado"
-            value={manualTotal}
-            onChange={v => setManualTotal(v)}
-            placeholder="0,00"
-          />
-        )}
+        {useManual && <AmountInp label="Total gastado" value={manualTotal} onChange={v => setManualTotal(v)} placeholder="0,00" />}
         <div style={{ background: T.accentLt, borderRadius: 14, padding: "14px 18px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span style={{ color: T.muted, fontSize: 14 }}>Total a registrar</span>
           <span style={{ fontWeight: 700, fontSize: 22, color: T.accent }}>{fmt(finalTotal)}</span>
@@ -1009,7 +867,6 @@ export default function App() {
   }, []);
 
   const saveCurrency = (code) => { setCurrencyState(code); fmt = makeFmt(code); storage.set("currency", code).catch(() => {}); };
-
   const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(() => {}); };
   const saveCats     = (data) => { setCategories(data); storage.set("categories", JSON.stringify(data)).catch(() => {}); };
   const saveBudgets  = (data) => { setBudgets(data); storage.set("budgets", JSON.stringify(data)).catch(() => {}); };
@@ -1019,19 +876,17 @@ export default function App() {
   const editExpense = (upd) => saveExpenses(expenses.map(e => e.id === upd.id ? upd : e));
 
   const addCategoryInline = (cat, isUpdate = false) => {
-    let updated;
-    if (isUpdate) updated = categories.map(c => c.id === cat.id ? cat : c);
-    else updated = [...categories, cat];
+    const updated = isUpdate ? categories.map(c => c.id === cat.id ? cat : c) : [...categories, cat];
     saveCats(updated);
   };
 
-  const catMap   = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+  const catMap    = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
   const weekRange = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
 
   const monthExp = useMemo(() => {
-    if (filterMode === "week")  return expenses.filter(e => inRange(e.date, weekRange.from, weekRange.to));
-    if (filterMode === "year")  return expenses.filter(e => e.date.startsWith(filterYear));
-    if (filterMode === "day")   return expenses.filter(e => e.date === filterDay);
+    if (filterMode === "week") return expenses.filter(e => inRange(e.date, weekRange.from, weekRange.to));
+    if (filterMode === "year") return expenses.filter(e => e.date.startsWith(filterYear));
+    if (filterMode === "day")  return expenses.filter(e => e.date === filterDay);
     return expenses.filter(e => monthOf(e.date) === filterMonth);
   }, [expenses, filterMonth, filterMode, weekRange, filterYear, filterDay]);
 
@@ -1044,7 +899,6 @@ export default function App() {
   const overBudget   = budgetTotal > 0 && budgetSpent > budgetTotal;
   const pctUsed      = budgetTotal > 0 ? Math.min((budgetSpent / budgetTotal) * 100, 100) : 0;
 
-  // ── catAlerts (single declaration) ───────────────────────────────────
   const catAlerts = useMemo(() => categories.filter(c => {
     const limit = Number(budgets[c.id]); if (!limit) return false;
     const spent = budgetExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0);
@@ -1057,19 +911,14 @@ export default function App() {
   }, [monthExp, catMap]);
 
   const barData = useMemo(() => {
-    if (filterMode === "day") {
-      return ["00-04","04-08","08-12","12-16","16-20","20-24"].map((label, i) => ({
-        day: label, total: i === 0 ? monthExp.reduce((s, e) => s + e.amount, 0) : 0
-      }));
-    }
+    if (filterMode === "day") return ["00-04","04-08","08-12","12-16","16-20","20-24"].map((label, i) => ({ day: label, total: i === 0 ? monthExp.reduce((s, e) => s + e.amount, 0) : 0 }));
     if (filterMode === "week") {
       const days = []; const start = new Date(weekRange.from);
       for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(d.toISOString().slice(0, 10)); }
       return days.map(d => ({ day: d.slice(5), total: expenses.filter(e => e.date === d).reduce((s, e) => s + e.amount, 0) }));
     }
     if (filterMode === "year") {
-      const meses = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-      return meses.map((name, i) => {
+      return ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"].map((name, i) => {
         const m = `${filterYear}-${String(i + 1).padStart(2, "0")}`;
         return { day: name, total: expenses.filter(e => monthOf(e.date) === m).reduce((s, e) => s + e.amount, 0) };
       });
@@ -1085,8 +934,6 @@ export default function App() {
   const months = useMemo(() => { const set = new Set(expenses.map(e => monthOf(e.date))); set.add(currentMonth()); return [...set].sort().reverse(); }, [expenses]);
   const years  = useMemo(() => { const set = new Set(expenses.map(e => e.date.slice(0, 4))); set.add(currentYear()); return [...set].sort().reverse(); }, [expenses]);
 
-  const navStyle = (v) => ({ background: "none", border: "none", borderBottom: view === v ? `2px solid ${T.accent}` : "2px solid transparent", color: view === v ? T.accent : T.muted, padding: "12px 14px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, transition: "color .2s", whiteSpace: "nowrap" });
-
   const curInfo = CURRENCIES.find(c => c.code === currency) || CURRENCIES[0];
 
   return (
@@ -1094,17 +941,14 @@ export default function App() {
       <GlobalStyles />
       <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-      {/* ── Header ────────────────────────────────────────────────── */}
+      {/* Header */}
       <div style={{ background: T.accent, borderBottom: `1px solid ${T.border}`, padding: "0 12px", display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56, flexWrap: "wrap", gap: 6 }}>
-        {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <img src="/logo.png" alt="Mis Gastos" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover" }} />
           <span style={{ fontWeight: 800, fontSize: 16, color: T.yellow, letterSpacing: "-.3px" }}>Mis Gastos</span>
         </div>
-        {/* Actions — sin + Gasto (ahora es FAB) */}
         <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "6px 0" }}>
-          <button onClick={() => setModal("currency")}
-            style={{ background: "rgba(255,255,255,.18)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+          <button onClick={() => setModal("currency")} style={{ background: "rgba(255,255,255,.18)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
             <span>{curInfo.symbol}</span><span>{curInfo.code}</span><span style={{ opacity: .7, fontSize: 10 }}>▼</span>
           </button>
           <button onClick={() => setModal("cats")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>🏷️</button>
@@ -1112,34 +956,20 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Filters ───────────────────────────────────────────────── */}
+      {/* Filters */}
       <div style={{ background: T.accentLt, borderBottom: `1px solid ${T.border}`, overflowX: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", padding: "0 12px", minWidth: "max-content" }}>
           {view !== "shopping" && (
             <>
               <div style={{ display: "flex", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", margin: "6px 0" }}>
-                {[["day","Día"], ["week","Semana"], ["month","Mes"], ["year","Año"]].map(([m, l]) => (
-                  <button key={m} onClick={() => setFilterMode(m)}
-                    style={{ background: filterMode === m ? T.accent : "transparent", color: filterMode === m ? "#fff" : T.muted, border: "none", padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12, transition: "background .2s" }}>{l}</button>
+                {[["day","Día"],["week","Semana"],["month","Mes"],["year","Año"]].map(([m, l]) => (
+                  <button key={m} onClick={() => setFilterMode(m)} style={{ background: filterMode === m ? T.accent : "transparent", color: filterMode === m ? "#fff" : T.muted, border: "none", padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12, transition: "background .2s" }}>{l}</button>
                 ))}
               </div>
-              {filterMode === "month" && (
-                <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)}
-                  style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>
-                  {months.map(m => <option key={m}>{m}</option>)}
-                </select>
-              )}
-              {filterMode === "year" && (
-                <select value={filterYear} onChange={e => setFilterYear(e.target.value)}
-                  style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>
-                  {years.map(y => <option key={y}>{y}</option>)}
-                </select>
-              )}
-              {filterMode === "day" && (
-                <input type="date" value={filterDay} onChange={e => setFilterDay(e.target.value)}
-                  style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />
-              )}
-              {filterMode === "week" && (
+              {filterMode === "month" && <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>{months.map(m => <option key={m}>{m}</option>)}</select>}
+              {filterMode === "year"  && <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>{years.map(y => <option key={y}>{y}</option>)}</select>}
+              {filterMode === "day"   && <input type="date" value={filterDay} onChange={e => setFilterDay(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />}
+              {filterMode === "week"  && (
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 8 }}>
                   <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.muted, padding: "4px 10px", cursor: "pointer", fontSize: 14 }}>‹</button>
                   <span style={{ color: T.muted, fontSize: 11, minWidth: 120, textAlign: "center" }}>{weekRange.from} → {weekRange.to}</span>
@@ -1151,7 +981,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Content ───────────────────────────────────────────────── */}
+      {/* Content */}
       <div style={{ padding: "14px 12px 100px 12px", maxWidth: 960, margin: "0 auto" }}>
 
         {(overBudget || catAlerts.length > 0) && view !== "shopping" && (
@@ -1164,13 +994,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ── Shopping ────────────────────────────────────────────── */}
         {view === "shopping" && <ShoppingList categories={categories} onAddExpense={addExpense} />}
 
-        {/* ── Dashboard ───────────────────────────────────────────── */}
         {view === "dashboard" && (
           <>
-            {/* KPI cards */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 16 }}>
               {[
                 { label: budgetTotal > 0 ? `Gastado ${budgetRange.label}` : "Gastado", val: fmt(budgetTotal > 0 ? budgetSpent : totalMonth), color: T.accent },
@@ -1280,7 +1107,6 @@ export default function App() {
           </>
         )}
 
-        {/* ── History ─────────────────────────────────────────────── */}
         {view === "history" && (
           <Card>
             <SectionLabel>Historial</SectionLabel>
@@ -1312,7 +1138,7 @@ export default function App() {
         )}
       </div>
 
-      {/* ── Modals ────────────────────────────────────────────────── */}
+      {/* Modals */}
       {modal === "add"      && <ExpenseModal categories={categories} onSave={addExpense} onClose={() => setModal(null)} onAddCategory={addCategoryInline} />}
       {modal === "budget"   && <BudgetModal budgets={budgets} categories={categories} onSave={saveBudgets} onClose={() => setModal(null)} />}
       {modal === "cats"     && <CatModal categories={categories} onChange={saveCats} onClose={() => setModal(null)} />}
@@ -1320,52 +1146,55 @@ export default function App() {
       {selectedCat          && <CatDetailModal cat={selectedCat} expenses={monthExp} onClose={() => setSelectedCat(null)} />}
       {editingExpense        && <ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={() => setEditingExpense(null)} onAddCategory={addCategoryInline} />}
 
-      {/* ── Bottom Nav + FAB ──────────────────────────────────────── */}
+      {/* Bottom Nav + FAB */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))", boxShadow: "0 -4px 20px rgba(45,106,45,.12)" }}>
 
         {/* Dashboard */}
-        <button onClick={() => setView("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 16px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <span style={{ fontSize: 20 }}>📊</span>
+          <IconDashboard active={view === "dashboard"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "dashboard" ? T.accent : T.muted, fontFamily: "inherit" }}>Inicio</span>
           {view === "dashboard" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
         {/* Historial */}
-        <button onClick={() => setView("history")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 16px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("history")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <span style={{ fontSize: 20 }}>📋</span>
+          <IconHistory active={view === "history"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "history" ? T.accent : T.muted, fontFamily: "inherit" }}>Historial</span>
           {view === "history" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
-        {/* FAB ── center */}
+        {/* FAB */}
         <button onClick={() => setModal("add")}
-          style={{ background: T.yellow, border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 700, color: T.accent, boxShadow: `0 4px 18px rgba(244,196,48,.5)`, transition: "transform .15s, box-shadow .15s", marginTop: -20, flexShrink: 0 }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = `0 8px 28px rgba(244,196,48,.65)`; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = `0 4px 18px rgba(244,196,48,.5)`; }}
+          style={{ background: "#1abc9c", border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 18px rgba(26,188,156,.5)", transition: "transform .15s, box-shadow .15s", marginTop: -20, flexShrink: 0 }}
+          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(26,188,156,.65)"; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(26,188,156,.5)"; }}
           onMouseDown={e => e.currentTarget.style.transform = "scale(.95)"}
           onMouseUp={e => e.currentTarget.style.transform = "scale(1.1)"}>
-          +
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect x="13" y="5" width="2" height="18" rx="1" fill="white"/>
+            <rect x="5" y="13" width="18" height="2" rx="1" fill="white"/>
+          </svg>
         </button>
 
         {/* Compras */}
-        <button onClick={() => setView("shopping")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 16px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("shopping")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <span style={{ fontSize: 20 }}>🛒</span>
+          <IconShopping active={view === "shopping"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
           {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
-        {/* Excel */}
-        <button onClick={() => exportCSV(monthExp, catMap)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 16px", borderRadius: 12, transition: "transform .15s" }}
+        {/* Exportar */}
+        <button onClick={() => exportCSV(monthExp, catMap)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <span style={{ fontSize: 20 }}>📥</span>
-          <span style={{ fontSize: 10, fontWeight: 600, color: T.muted, fontFamily: "inherit" }}>Excel</span>
+          <IconExport />
+          <span style={{ fontSize: 10, fontWeight: 600, color: T.muted, fontFamily: "inherit" }}>Exportar</span>
         </button>
 
       </div>
