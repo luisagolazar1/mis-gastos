@@ -855,6 +855,9 @@ export default function App() {
   const [selectedCat, setSelectedCat] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
 
+  // Protección: solo permitir guardar categorías DESPUÉS de haber cargado Firebase
+  const firebaseLoaded = useRef(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -863,12 +866,20 @@ export default function App() {
         const b = await storage.get("budgets");    if (b) setBudgets(JSON.parse(b.value));
         const cur = await storage.get("currency"); if (cur) { setCurrencyState(cur.value); fmt = makeFmt(cur.value); }
       } catch {}
+      // Marcar como cargado SIEMPRE — incluso si Firebase falla
+      // Esto permite guardar cambios del usuario, pero nunca sobreescribe con DEFAULT_CATS
+      firebaseLoaded.current = true;
     })();
   }, []);
 
   const saveCurrency = (code) => { setCurrencyState(code); fmt = makeFmt(code); storage.set("currency", code).catch(() => {}); };
   const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(() => {}); };
-  const saveCats     = (data) => { setCategories(data); storage.set("categories", JSON.stringify(data)).catch(() => {}); };
+  // Protección: nunca sobreescribir categorías con DEFAULT_CATS por error de carga
+  const saveCats = (data) => {
+    if (!firebaseLoaded.current) return; // aún no cargó Firebase, no tocar
+    if (!data || data.length === 0) return; // nunca guardar lista vacía
+    setCategories(data); storage.set("categories", JSON.stringify(data)).catch(() => {});
+  };
   const saveBudgets  = (data) => { setBudgets(data); storage.set("budgets", JSON.stringify(data)).catch(() => {}); };
 
   const addExpense  = (exp) => saveExpenses([...expenses, exp]);
