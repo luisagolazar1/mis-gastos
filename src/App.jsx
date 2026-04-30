@@ -139,13 +139,164 @@ const exportCSV = (expenses, catMap) => {
 };
 
 const DEFAULT_CATS = [
-  { id: 1, name: "Comida",          color: PALETTE[0], icon: "🍔", subcats: [] },
-  { id: 2, name: "Transporte",      color: PALETTE[1], icon: "🚌", subcats: [] },
-  { id: 3, name: "Entretenimiento", color: PALETTE[2], icon: "🎬", subcats: [] },
-  { id: 4, name: "Salud",           color: PALETTE[3], icon: "💊", subcats: [] },
-  { id: 5, name: "Ropa",            color: PALETTE[4], icon: "👕", subcats: [] },
-  { id: 6, name: "Hogar",           color: PALETTE[5], icon: "🏠", subcats: [] },
+  { id: 1, name: "Comida",          color: PALETTE[0], icon: "comida",   subcats: [] },
+  { id: 2, name: "Transporte",      color: PALETTE[1], icon: "auto",     subcats: [] },
+  { id: 3, name: "Entretenimiento", color: PALETTE[2], icon: "musica",   subcats: [] },
+  { id: 4, name: "Salud",           color: PALETTE[3], icon: "salud",    subcats: [] },
+  { id: 5, name: "Ropa",            color: PALETTE[4], icon: "ropa",     subcats: [] },
+  { id: 6, name: "Hogar",           color: PALETTE[5], icon: "hogar",    subcats: [] },
 ];
+
+// ── iOS-style category icons (69 total) ──────────────────────────────
+// Each: { g:[grad1,grad2], el: JSX SVG content on 24×24 viewbox }
+const I = { s:"white", w:"2.2", lc:"round", lj:"round" }; // shorthand
+const CAT_ICONS = {
+  // ── COMIDA Y BEBIDA (10) ──────────────────────────────────────────
+  comida:      { g:["#FF6B35","#E83400"], el:<><line x1="8" y1="1" x2="8" y2="23" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M5 1v7a3 3 0 003 3v12" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><line x1="19" y1="1" x2="19" y2="23" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M16 1v8h6V1" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/></> },
+  cafe:        { g:["#8B572A","#5C3317"], el:<><path d="M5 8h14v8a5 5 0 01-5 5H10a5 5 0 01-5-5V8z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M19 10h2a2 2 0 010 4h-2" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M9 5c0-2 1.5-3 1.5-4M13 5c0-2 1.5-3 1.5-4" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  cerveza:     { g:["#F5A623","#D4880A"], el:<><path d="M7 6h10l-1 15H8L7 6z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M17 10h3a1 1 0 010 6h-3" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M7 6c0-2 1-3 5-3s5 1 5 3" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  vino:        { g:["#9B2335","#6B0F1A"], el:<><path d="M8 2h8s2 4 2 7a6 6 0 01-12 0c0-3 2-7 2-7z" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="12" y1="15" x2="12" y2="22" stroke={I.s} strokeWidth={I.w}/><line x1="8" y1="22" x2="16" y2="22" stroke={I.s} strokeWidth={I.w}/></> },
+  pizza:       { g:["#E53935","#B71C1C"], el:<><path d="M12 2L22 20H2L12 2z" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="12" cy="14" r="2" fill={I.s} opacity=".8"/><circle cx="8" cy="16" r="1.3" fill={I.s} opacity=".8"/><circle cx="16" cy="16" r="1.3" fill={I.s} opacity=".8"/></> },
+  hamburguesa: { g:["#D4880A","#9A6200"], el:<><path d="M5 8h14a5 5 0 00-14 0z" fill={I.s} opacity=".9"/><rect x="4" y="11" width="16" height="2.5" rx="1" fill={I.s} opacity=".7"/><rect x="4" y="15" width="16" height="2" rx="1" fill={I.s} opacity=".5"/><path d="M5 17h14a1 1 0 011 1v1a2 2 0 01-2 2H6a2 2 0 01-2-2v-1a1 1 0 011-1z" fill={I.s} opacity=".9"/></> },
+  ensalada:    { g:["#27AE60","#1A7A40"], el:<><path d="M4 18c0-4 3-10 8-10s8 6 8 10H4z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M12 8V4M9 9L7 6M15 9l2-3" fill="none" stroke={I.s} strokeWidth="2"/><line x1="4" y1="18" x2="20" y2="18" stroke={I.s} strokeWidth={I.w}/></> },
+  postre:      { g:["#E91E8C","#B5116A"], el:<><path d="M6 14h12v5a3 3 0 01-3 3H9a3 3 0 01-3-3v-5z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M6 14c0-4 6-6 6-10 0 4 6 6 6 10" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="12" y1="4" x2="12" y2="2" stroke={I.s} strokeWidth="2"/></> },
+  mercado:     { g:["#16A085","#0A6B59"], el:<><path d="M4 6h16l-2 12H6L4 6z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M4 6l-1-4H1" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="9" cy="21" r="1.5" fill={I.s}/><circle cx="16" cy="21" r="1.5" fill={I.s}/><path d="M8 10h8M8 13h6" stroke={I.s} strokeWidth="1.5"/></> },
+  restaurante: { g:["#E74C3C","#B71C1C"], el:<><path d="M4 6v4a8 8 0 0016 0V6" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="12" y1="18" x2="12" y2="22" stroke={I.s} strokeWidth={I.w}/><line x1="8" y1="22" x2="16" y2="22" stroke={I.s} strokeWidth={I.w}/><line x1="4" y1="6" x2="20" y2="6" stroke={I.s} strokeWidth={I.w}/></> },
+  // ── TRANSPORTE (8) ───────────────────────────────────────────────
+  auto:        { g:["#3498DB","#1A6FA8"], el:<><path d="M3 12l2-5h14l2 5v5H3v-5z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M7 7l1-3h8l1 3" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="7" cy="17" r="2" fill={I.s} opacity=".8"/><circle cx="17" cy="17" r="2" fill={I.s} opacity=".8"/></> },
+  colectivo:   { g:["#2980B9","#1A5C80"], el:<><rect x="3" y="5" width="18" height="13" rx="3" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="3" y1="11" x2="21" y2="11" stroke={I.s} strokeWidth="2"/><circle cx="7" cy="20" r="2" fill={I.s} opacity=".8"/><circle cx="17" cy="20" r="2" fill={I.s} opacity=".8"/><rect x="6" y="7" width="4" height="3" rx="1" fill={I.s} opacity=".7"/><rect x="14" y="7" width="4" height="3" rx="1" fill={I.s} opacity=".7"/></> },
+  avion:       { g:["#5C9BD6","#2962A8"], el:<><path d="M21 16l-9-5-9 5 2-8 7 4 7-4 2 8z" fill="none" stroke={I.s} strokeWidth="2"/><path d="M12 11V3" stroke={I.s} strokeWidth={I.w}/><path d="M5 19l7-3 7 3" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  tren:        { g:["#546E7A","#263238"], el:<><rect x="5" y="3" width="14" height="14" rx="4" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="5" y1="10" x2="19" y2="10" stroke={I.s} strokeWidth="2"/><circle cx="8.5" cy="14" r="1.5" fill={I.s} opacity=".8"/><circle cx="15.5" cy="14" r="1.5" fill={I.s} opacity=".8"/><path d="M7 20l2-3M17 20l-2-3" stroke={I.s} strokeWidth="2" strokeLinecap={I.lc}/></> },
+  bicicleta:   { g:["#27AE60","#1A7A40"], el:<><circle cx="6" cy="16" r="5" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="18" cy="16" r="5" fill="none" stroke={I.s} strokeWidth="2"/><path d="M6 16l5-8 2 4h4" fill="none" stroke={I.s} strokeWidth="2"/><path d="M10 16l2-8" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  taxi:        { g:["#F5A623","#D4880A"], el:<><path d="M3 12l2-5h14l2 5v5H3v-5z" fill="none" stroke={I.s} strokeWidth={I.w}/><rect x="7" y="5" width="10" height="2.5" rx="1" fill={I.s} opacity=".8"/><circle cx="7" cy="17" r="2" fill={I.s} opacity=".8"/><circle cx="17" cy="17" r="2" fill={I.s} opacity=".8"/></> },
+  combustible: { g:["#E67E22","#A04000"], el:<><path d="M5 22V6a2 2 0 012-2h6a2 2 0 012 2v16" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="5" y1="22" x2="15" y2="22" stroke={I.s} strokeWidth={I.w}/><path d="M15 8h2a2 2 0 012 2v4l1 2v2a1 1 0 01-2 0v-2l-1-2V10h-2" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  barco:       { g:["#0288D1","#01579B"], el:<><path d="M4 18l8-14 8 14H4z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M2 18c2 3 4 4 10 4s8-1 10-4" fill="none" stroke={I.s} strokeWidth="2"/><line x1="12" y1="4" x2="12" y2="12" stroke={I.s} strokeWidth="2"/></> },
+  // ── SALUD (7) ────────────────────────────────────────────────────
+  salud:       { g:["#E74C3C","#B71C1C"], el:<><path d="M12 21s-8-5.5-8-11a5 5 0 0110 0 5 5 0 0110 0c0 5.5-8 11-8 11z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M9 10h6M12 7v6" stroke={I.s} strokeWidth="2"/></> },
+  medicamento: { g:["#E91E63","#880E4F"], el:<><rect x="4.5" y="9.5" width="15" height="7" rx="3.5" fill="none" stroke={I.s} strokeWidth={I.w} transform="rotate(-45 12 13)"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5" stroke={I.s} strokeWidth="2"/></> },
+  hospital:    { g:["#C62828","#8B0000"], el:<><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M9 12h6M12 9v6" stroke={I.s} strokeWidth="2.5"/></> },
+  dental:      { g:["#00BCD4","#00838F"], el:<><path d="M8 2c-2 0-5 1.5-5 6 0 3 1 7 3 9 1 1 2 1 3-1l1-3 1 3c1 2 2 2 3 1 2-2 3-6 3-9 0-4.5-3-6-5-6-1 0-2 .5-2 .5S9 2 8 2z" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  gimnasio:    { g:["#7B1FA2","#4A0072"], el:<><line x1="6" y1="12" x2="18" y2="12" stroke={I.s} strokeWidth="2.5"/><rect x="2" y="10" width="4" height="4" rx="2" fill={I.s} opacity=".8"/><rect x="18" y="10" width="4" height="4" rx="2" fill={I.s} opacity=".8"/></> },
+  deporte:     { g:["#2ECC71","#1A8A4A"], el:<><circle cx="12" cy="12" r="9" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M12 3c0 3-2 5-5 6M12 3c0 3 2 5 5 6M3 12c3 0 5 2 6 5M21 12c-3 0-5 2-6 5" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  corrida:     { g:["#FF6B35","#E83400"], el:<><circle cx="15" cy="4" r="2" fill={I.s} opacity=".9"/><path d="M12 8l-3 8M9 16l-3 5M12 8l4 4-2 5" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M6 21h4M14 17h4" stroke={I.s} strokeWidth="2" strokeLinecap={I.lc}/></> },
+  // ── ENTRETENIMIENTO (8) ──────────────────────────────────────────
+  videojuego:  { g:["#9C27B0","#4A0072"], el:<><rect x="2" y="8" width="20" height="10" rx="4" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M7 12v2M6 13h2" stroke={I.s} strokeWidth="2" strokeLinecap={I.lc}/><circle cx="16" cy="12" r="1.2" fill={I.s}/><circle cx="18" cy="14" r="1.2" fill={I.s}/></> },
+  musica:      { g:["#E91E63","#880E4F"], el:<><path d="M9 18V6l12-2v12" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="7" cy="18" r="3" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="19" cy="16" r="3" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  cine:        { g:["#37474F","#102027"], el:<><rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M2 8h20M2 16h20" stroke={I.s} strokeWidth="1.5"/><rect x="2" y="5" width="3" height="3" fill={I.s} opacity=".5"/><rect x="19" y="5" width="3" height="3" fill={I.s} opacity=".5"/><path d="M9 11l5 2.5L9 16V11z" fill={I.s} opacity=".9"/></> },
+  television:  { g:["#1565C0","#0D47A1"], el:<><rect x="2" y="4" width="20" height="14" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M8 20h8M12 18v2" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M9 10l4 2.5L9 15V10z" fill={I.s} opacity=".9"/></> },
+  fotografia:  { g:["#607D8B","#263238"], el:<><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="12" cy="13" r="4" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  libros:      { g:["#FF9800","#E65100"], el:<><path d="M4 19V5a2 2 0 012-2h12a2 2 0 012 2v14" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M4 19a2 2 0 002 2h12a2 2 0 002-2H4z" fill={I.s} opacity=".3"/><line x1="9" y1="7" x2="15" y2="7" stroke={I.s} strokeWidth="2"/><line x1="9" y1="11" x2="15" y2="11" stroke={I.s} strokeWidth="1.5"/></> },
+  auriculares: { g:["#7986CB","#283593"], el:<><path d="M3 18v-6a9 9 0 0118 0v6" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M21 18a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 18a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  teatro:      { g:["#D81B60","#880E4F"], el:<><path d="M8 3s-4 1-4 7 4 9 8 9 8-3 8-9-4-7-4-7" fill="none" stroke={I.s} strokeWidth="2"/><path d="M9 10s1 2 4 2 4-2 4-2M9 7.5h.01M15 7.5h.01" stroke={I.s} strokeWidth="2"/></> },
+  // ── COMPRAS (6) ──────────────────────────────────────────────────
+  bolsa:       { g:["#E91E63","#880E4F"], el:<><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="3" y1="6" x2="21" y2="6" stroke={I.s} strokeWidth="2"/><path d="M16 10a4 4 0 01-8 0" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  ropa:        { g:["#9C27B0","#4A0072"], el:<><path d="M20.38 3.46L16 2l-4 4-4-4L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 001 .74H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 001-.74l.58-3.57a2 2 0 00-1.35-2.23z" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  zapatillas:  { g:["#E53935","#B71C1C"], el:<><path d="M3 14s1-2 3-2 3 1 6 0 7-4 7-4v3s-3 5-7 5-5-2-7-1l-2 4v-5z" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="9" y1="12" x2="9" y2="16" stroke={I.s} strokeWidth="1.5"/><line x1="13" y1="10" x2="13" y2="14" stroke={I.s} strokeWidth="1.5"/></> },
+  regalo:      { g:["#F06292","#C2185B"], el:<><rect x="3" y="10" width="18" height="12" rx="1" fill="none" stroke={I.s} strokeWidth={I.w}/><rect x="3" y="6" width="18" height="4" rx="1" fill="none" stroke={I.s} strokeWidth="2"/><line x1="12" y1="6" x2="12" y2="22" stroke={I.s} strokeWidth="2"/><path d="M12 6s-2-3.5 0-3.5 0 3.5 0 3.5M12 6s2-3.5 0-3.5" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  joyeria:     { g:["#7B1FA2","#4A0072"], el:<><path d="M6 3h12l4 6-10 12L2 9l4-6z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M2 9h20M6 3l3 6h6l3-6" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  electronica: { g:["#0288D1","#01579B"], el:<><rect x="2" y="4" width="14" height="10" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M16 9h3l3 3v4h-6V9z" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="19" cy="16" r="1.5" fill={I.s} opacity=".8"/><line x1="2" y1="14" x2="16" y2="14" stroke={I.s} strokeWidth="1.5"/></> },
+  // ── HOGAR (8) ────────────────────────────────────────────────────
+  hogar:       { g:["#E67E22","#A04000"], el:<><path d="M3 12L12 3l9 9" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M5 12v9h14v-9" fill="none" stroke={I.s} strokeWidth={I.w}/><rect x="9" y="15" width="6" height="6" rx="1" fill={I.s} opacity=".7"/></> },
+  herramientas:{ g:["#607D8B","#263238"], el:<><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  limpieza:    { g:["#00ACC1","#006064"], el:<><path d="M14 12l-8.5 8.5a2.12 2.12 0 01-3-3L11 9" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M11 9l5-5 6 4-5 5" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M21.5 5.5L18 2" stroke={I.s} strokeWidth="2"/></> },
+  electricidad:{ g:["#FDD835","#F57F17"], el:<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="none" stroke={I.s} strokeWidth={I.w}/> },
+  llave:       { g:["#78909C","#37474F"], el:<><circle cx="7.5" cy="15.5" r="5.5" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M21 2l-9.6 9.6M15.5 7.5l3 3M19 6l2 2" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/></> },
+  jardin:      { g:["#43A047","#1B5E20"], el:<><path d="M12 22V12M12 12S8 10 6 6c3 0 5 1 6 3M12 12s4-2 6-6c-3 0-5 1-6 3" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M12 18s-3-1-5-4c2.5 0 4 1 5 2M12 18s3-1 5-4c-2.5 0-4 1-5 2" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  internet:    { g:["#2196F3","#0D47A1"], el:<><circle cx="12" cy="12" r="10" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  muebles:     { g:["#A1887F","#5D4037"], el:<><path d="M2 9h20v4H2V9z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M4 13v6M20 13v6" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M2 9V6a2 2 0 012-2h16a2 2 0 012 2v3" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  // ── FINANZAS (7) ─────────────────────────────────────────────────
+  dinero:      { g:["#2ECC71","#1A8A4A"], el:<><rect x="2" y="6" width="20" height="14" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="12" cy="13" r="3" fill="none" stroke={I.s} strokeWidth="2"/><path d="M2 10h3M19 10h3M2 16h3M19 16h3" stroke={I.s} strokeWidth="1.8"/></> },
+  tarjeta:     { g:["#1976D2","#0D47A1"], el:<><rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="2" y1="10" x2="22" y2="10" stroke={I.s} strokeWidth="2.5"/><line x1="6" y1="15" x2="10" y2="15" stroke={I.s} strokeWidth="2"/><rect x="14" y="13.5" width="5" height="3" rx="1" fill={I.s} opacity=".5"/></> },
+  banco:       { g:["#5C6BC0","#283593"], el:<><path d="M3 22h18M3 10h18M5 10V22M12 10V22M19 10V22" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M2 10L12 2l10 8H2z" fill={I.s} opacity=".3" stroke={I.s} strokeWidth="2"/></> },
+  ahorro:      { g:["#FF9800","#E65100"], el:<><path d="M19 5c-1.5 0-2.8.6-3.9 1.5A5 5 0 005 10v2H2l3 3.5L2 19h8v-1a5 5 0 004.9-6c.7.1 1.4.1 2.1 0A4 4 0 0021 8V7a4 4 0 00-2-2z" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="16" cy="9" r="1" fill={I.s}/></> },
+  inversion:   { g:["#26C6DA","#00838F"], el:<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc} strokeLinejoin={I.lj}/><polyline points="17 6 23 6 23 12" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/></> },
+  impuestos:   { g:["#78909C","#37474F"], el:<><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" fill="none" stroke={I.s} strokeWidth={I.w}/><polyline points="14 2 14 8 20 8" fill="none" stroke={I.s} strokeWidth="2"/><line x1="9" y1="13" x2="15" y2="13" stroke={I.s} strokeWidth="2"/><line x1="9" y1="17" x2="12" y2="17" stroke={I.s} strokeWidth="2"/></> },
+  billetera:   { g:["#66BB6A","#2E7D32"], el:<><path d="M21 4H3a2 2 0 00-2 2v12a2 2 0 002 2h18a2 2 0 002-2V6a2 2 0 00-2-2z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M16 14h.01" stroke={I.s} strokeWidth="3" strokeLinecap={I.lc}/><path d="M22 10H17a2 2 0 000 4h5" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  // ── EDUCACIÓN (5) ────────────────────────────────────────────────
+  educacion:   { g:["#5C9BD6","#1A3F6F"], el:<><path d="M22 10v6M2 10l10-5 10 5-10 5-10-5z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M6 12v5c3 3 9 3 12 0v-5" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  estudio:     { g:["#FF9800","#E65100"], el:<><path d="M4 19V5a2 2 0 012-2h12a2 2 0 012 2v14H4z" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="4" y1="19" x2="20" y2="19" stroke={I.s} strokeWidth="2"/><line x1="9" y1="8" x2="15" y2="8" stroke={I.s} strokeWidth="2"/><line x1="9" y1="12" x2="15" y2="12" stroke={I.s} strokeWidth="1.5"/></> },
+  lapiz:       { g:["#FDD835","#F9A825"], el:<><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  diploma:     { g:["#AB47BC","#6A1B9A"], el:<><path d="M4 4h16v12H4z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M12 16v6M9 22h6" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><path d="M9 8h6M9 11h4" stroke={I.s} strokeWidth="1.8"/></> },
+  laboratorio: { g:["#26A69A","#004D40"], el:<><path d="M9 3v8l-4 8h14L15 11V3M9 3h6" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><circle cx="10" cy="16" r="1" fill={I.s}/><circle cx="13" cy="18" r="1" fill={I.s}/></> },
+  // ── PERSONAL (4) ────────────────────────────────────────────────
+  persona:     { g:["#5C9BD6","#2962A8"], el:<><circle cx="12" cy="7" r="4" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M4 21v-1a8 8 0 0116 0v1" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  familia:     { g:["#EF5350","#B71C1C"], el:<><circle cx="7" cy="6" r="3" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="17" cy="6" r="3" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="12" cy="14" r="2.5" fill="none" stroke={I.s} strokeWidth="2"/><path d="M1 21a6 6 0 0112 0M11 21a6 6 0 0112 0" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  mascota:     { g:["#8D6E63","#4E342E"], el:<><circle cx="12" cy="13" r="6" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="6.5" cy="6.5" r="2.5" fill="none" stroke={I.s} strokeWidth="2"/><circle cx="17.5" cy="6.5" r="2.5" fill="none" stroke={I.s} strokeWidth="2"/><path d="M10 17s1 2 2 0M9 15h.01M15 15h.01" stroke={I.s} strokeWidth="2" strokeLinecap={I.lc}/></> },
+  bebe:        { g:["#F48FB1","#C2185B"], el:<><circle cx="12" cy="9" r="6" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M10 10h.01M14 10h.01" stroke={I.s} strokeWidth="3" strokeLinecap={I.lc}/><path d="M10 13a3 3 0 004 0" fill="none" stroke={I.s} strokeWidth="2"/><path d="M18 18s-3 4-6 4-6-4-6-4" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  // ── VIAJES (6) ──────────────────────────────────────────────────
+  viaje:       { g:["#00ACC1","#006064"], el:<><circle cx="12" cy="12" r="10" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="2" y1="12" x2="22" y2="12" stroke={I.s} strokeWidth="1.8"/><path d="M12 2a15 15 0 010 20M12 2a15 15 0 000 20" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  mapa:        { g:["#66BB6A","#2E7D32"], el:<><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="8" y1="2" x2="8" y2="18" stroke={I.s} strokeWidth="1.8"/><line x1="16" y1="6" x2="16" y2="22" stroke={I.s} strokeWidth="1.8"/></> },
+  hotel:       { g:["#42A5F5","#0D47A1"], el:<><path d="M3 22V5a2 2 0 012-2h14a2 2 0 012 2v17M3 22h18" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><rect x="8" y="14" width="4" height="8" rx="1" fill={I.s} opacity=".7"/><rect x="5" y="8" width="4" height="4" rx="1" fill={I.s} opacity=".5"/><rect x="15" y="8" width="4" height="4" rx="1" fill={I.s} opacity=".5"/></> },
+  montana:     { g:["#78909C","#37474F"], el:<><path d="M8 3L1 21h22L15 3l-4 7-3-7z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M15 3l-2 4-2-4" fill="none" stroke={I.s} strokeWidth="1.8"/></> },
+  playa:       { g:["#FF7043","#BF360C"], el:<><path d="M2 20c4-8 8-8 12 0" fill="none" stroke={I.s} strokeWidth={I.w}/><circle cx="20" cy="6" r="3" fill={I.s} opacity=".8"/><line x1="20" y1="11" x2="20" y2="20" stroke={I.s} strokeWidth="2"/><line x1="16" y1="16" x2="24" y2="16" stroke={I.s} strokeWidth="2"/></> },
+  camping:     { g:["#558B2F","#1B5E20"], el:<><path d="M12 2L2 22h20L12 2z" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M12 2L9 10M12 2l3 8" fill="none" stroke={I.s} strokeWidth="1.8"/><line x1="2" y1="22" x2="22" y2="22" stroke={I.s} strokeWidth="2"/></> },
+  // ── MISCELÁNEOS (9) ─────────────────────────────────────────────
+  estrella:    { g:["#FDD835","#F57F17"], el:<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" fill="none" stroke={I.s} strokeWidth={I.w}/> },
+  telefono:    { g:["#4CAF50","#1B5E20"], el:<><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 015.13 12.7a19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  correo:      { g:["#42A5F5","#0D47A1"], el:<><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" fill="none" stroke={I.s} strokeWidth={I.w}/><polyline points="22 6 12 13 2 6" fill="none" stroke={I.s} strokeWidth="2"/></> },
+  reloj:       { g:["#546E7A","#263238"], el:<><circle cx="12" cy="12" r="10" fill="none" stroke={I.s} strokeWidth={I.w}/><polyline points="12 6 12 12 16 14" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/></> },
+  calendario:  { g:["#EF5350","#B71C1C"], el:<><rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke={I.s} strokeWidth={I.w}/><line x1="16" y1="2" x2="16" y2="6" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><line x1="8" y1="2" x2="8" y2="6" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><line x1="3" y1="10" x2="21" y2="10" stroke={I.s} strokeWidth="2"/><rect x="8" y="14" width="3" height="3" rx=".5" fill={I.s} opacity=".8"/></> },
+  notificacion:{ g:["#FF7043","#BF360C"], el:<><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  suscripcion: { g:["#AB47BC","#6A1B9A"], el:<><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke={I.s} strokeWidth={I.w}/></> },
+  wifi:        { g:["#2196F3","#0D47A1"], el:<><path d="M5 12.55a11 11 0 0114.08 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0" fill="none" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/><circle cx="12" cy="20" r="1.5" fill={I.s}/></> },
+  otros:       { g:["#90A4AE","#546E7A"], el:<><circle cx="12" cy="12" r="10" fill="none" stroke={I.s} strokeWidth={I.w}/><path d="M9 9a3 3 0 015.12 2.1c0 2-3 3-3 3M12 17h.01" stroke={I.s} strokeWidth={I.w} strokeLinecap={I.lc}/></> },
+};
+
+// ── CatIcon: renders iOS-style SVG icon or emoji fallback ─────────────
+function CatIcon({ icon, size = 36, style = {} }) {
+  const def = CAT_ICONS[icon];
+  const r = Math.round(size * 0.22);
+  if (!def) {
+    // Emoji fallback in a styled container
+    return (
+      <div style={{ width: size, height: size, borderRadius: r, background: "linear-gradient(135deg,#9e9e9e,#757575)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: size * 0.5, flexShrink: 0, ...style }}>
+        {icon}
+      </div>
+    );
+  }
+  const gid = `cg_${icon}`;
+  return (
+    <svg width={size} height={size} viewBox="0 0 36 36" style={{ display: "block", flexShrink: 0, ...style }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={def.g[0]}/>
+          <stop offset="100%" stopColor={def.g[1]}/>
+        </linearGradient>
+      </defs>
+      <rect width="36" height="36" rx={r} fill={`url(#${gid})`}/>
+      <g transform="translate(6,6)" strokeLinecap="round" strokeLinejoin="round" fill="none">
+        {def.el}
+      </g>
+    </svg>
+  );
+}
+
+// ── IconPicker: grid of iOS icons + search ────────────────────────────
+function IconPicker({ selected, onSelect }) {
+  const [search, setSearch] = useState("");
+  const allKeys = Object.keys(CAT_ICONS);
+  const filtered = search.trim()
+    ? allKeys.filter(k => k.toLowerCase().includes(search.trim().toLowerCase()))
+    : allKeys;
+  return (
+    <div>
+      <input
+        placeholder="🔍 Buscar ícono..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: "100%", background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", color: T.text, fontSize: 13, outline: "none", fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box" }}
+      />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(44px,1fr))", gap: 6, maxHeight: 220, overflowY: "auto", padding: "2px 0" }}>
+        {filtered.map(key => (
+          <div key={key} onClick={() => onSelect(key)} title={key}
+            style={{ cursor: "pointer", borderRadius: 10, padding: 3, border: `2px solid ${selected === key ? T.accent : "transparent"}`, background: selected === key ? T.accentLt : "transparent", transition: "all .15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CatIcon icon={key} size={38}/>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── SVG Nav Icons ─────────────────────────────────────────────────────
 function IconDashboard({ active }) {
@@ -355,16 +506,16 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
   const [showNewCat, setShowNewCat] = useState(false);
   const [showNewSub, setShowNewSub] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-  const [newCatIcon, setNewCatIcon] = useState("💰");
+  const [newCatIcon, setNewCatIcon] = useState("otros");
   const [newSubName, setNewSubName] = useState("");
-  const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾","🍕","🍺","☕","🍷","🥗","🏋️","🚗","⛽","💡","📱","🎵","⚽","🎓","💼","🏦","💳","🎁","🐶","🌿"];
+  const [showNewCatIconPicker, setShowNewCatIconPicker] = useState(false);
   const cat = categories.find(c => c.id === Number(form.catId));
   const subcats = cat?.subcats || [];
 
   const addNewCat = () => {
     if (!newCatName.trim()) return;
     const newCat = { id: Date.now(), name: newCatName.trim(), icon: newCatIcon, color: PALETTE[categories.length % PALETTE.length], subcats: [] };
-    onAddCategory(newCat); set("catId", newCat.id); setNewCatName(""); setShowNewCat(false);
+    onAddCategory(newCat); set("catId", newCat.id); setNewCatName(""); setShowNewCat(false); setShowNewCatIconPicker(false);
   };
   const addNewSub = () => {
     if (!newSubName.trim() || !cat) return;
@@ -382,28 +533,38 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
     <Modal title={isEdit ? "Editar gasto" : "Nuevo gasto"} onClose={onClose}>
       <AmountInp label="Monto" value={form.amount} onChange={v => set("amount", v)} placeholder="0,00" inputStyle={{ fontSize: 22 }} />
       <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Categoría</label>
-          <button onClick={() => { setShowNewCat(!showNewCat); setShowNewSub(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
-            {showNewCat ? "✕ Cancelar" : "+ Nueva categoría"}
+          <button onClick={() => { setShowNewCat(!showNewCat); setShowNewSub(false); setShowNewCatIconPicker(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
+            {showNewCat ? "✕ Cancelar" : "+ Nueva"}
           </button>
         </div>
         {showNewCat ? (
           <div style={{ background: T.accentLt, borderRadius: 12, padding: 12, marginBottom: 8 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-              <select value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px", fontSize: 18, cursor: "pointer" }}>
-                {icons.map(ic => <option key={ic}>{ic}</option>)}
-              </select>
-              <input placeholder="Nombre de la categoría" value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewCat()}
+            <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+              <div onClick={() => setShowNewCatIconPicker(p => !p)} style={{ cursor: "pointer", borderRadius: 8, padding: 2, border: `2px solid ${T.border}`, background: T.surface }}>
+                <CatIcon icon={newCatIcon} size={36}/>
+              </div>
+              <input placeholder="Nombre..." value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewCat()}
                 style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
+            {showNewCatIconPicker && (
+              <div style={{ marginBottom: 8 }}>
+                <IconPicker selected={newCatIcon} onSelect={k => { setNewCatIcon(k); setShowNewCatIconPicker(false); }}/>
+              </div>
+            )}
             <Btn onClick={addNewCat} style={{ width: "100%", padding: "8px" }}>✓ Crear categoría</Btn>
           </div>
         ) : (
-          <select value={form.catId} onChange={e => { set("catId", e.target.value); set("subCatId", ""); }}
-            style={{ width: "100%", background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "10px 13px", color: T.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(58px,1fr))", gap: 6 }}>
+            {categories.map(c => (
+              <div key={c.id} onClick={() => { set("catId", c.id); set("subCatId", ""); }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer", padding: "8px 4px", borderRadius: 12, border: `2px solid ${Number(form.catId) === c.id ? T.accent : "transparent"}`, background: Number(form.catId) === c.id ? T.accentLt : T.bg, transition: "all .15s" }}>
+                <CatIcon icon={c.icon} size={36}/>
+                <span style={{ fontSize: 9, color: Number(form.catId) === c.id ? T.accent : T.muted, fontWeight: 600, textAlign: "center", lineHeight: 1.2, maxWidth: 52, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       <div style={{ marginBottom: 14 }}>
@@ -459,7 +620,7 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
       <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Por categoría (opcional)</p>
       {categories.map(c => (
         <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <span style={{ fontSize: 20 }}>{c.icon}</span>
+          <CatIcon icon={c.icon} size={28}/>
           <span style={{ color: T.text, fontSize: 14, flex: 1 }}>{c.name}</span>
           <div style={{ width: 130 }}>
             <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 14, fontWeight: 600 }} />
@@ -476,17 +637,21 @@ function BudgetModal({ budgets, categories, onSave, onClose }) {
 
 function CatModal({ categories, onChange, onClose }) {
   const [cats, setCats] = useState(categories.map(c => ({ ...c, subcats: [...(c.subcats || [])] })));
-  const [newName, setNewName] = useState(""); const [newIcon, setNewIcon] = useState("💰");
+  const [newName, setNewName] = useState("");
+  const [newIcon, setNewIcon] = useState("otros");
   const [expandedCat, setExpandedCat] = useState(null);
   const [newSubName, setNewSubName] = useState("");
-  const icons = ["💰","🛒","🍔","🚌","🎬","💊","👕","🏠","📚","✈️","🎮","🐾","🍕","🍺","☕","🍷","🥗","🏋️","🚗","⛽","🅿️","🚕","🚇","💈","💅","🧴","🧹","💡","🔧","🖥️","📱","🎵","🎭","⚽","🏊","🧘","🎓","📖","✏️","💼","🏦","💳","🎁","🎂","🐶","🐱","🌿","🌊","🏔️","🎪","🃏","🎯","🧃","🛍️","🧺","🪴","🕯️","🎠"];
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [editingIconFor, setEditingIconFor] = useState(null); // catId | "new"
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragSubIdx, setDragSubIdx] = useState(null); // {catId, idx}
 
   const addCat = () => {
     if (!newName.trim()) return;
     const used = cats.map(c => c.color);
     const color = PALETTE.find(p => !used.includes(p)) || PALETTE[cats.length % PALETTE.length];
     setCats(c => [...c, { id: Date.now(), name: newName.trim(), icon: newIcon, color, subcats: [] }]);
-    setNewName("");
+    setNewName(""); setNewIcon("otros"); setShowIconPicker(false);
   };
   const delCat = (id) => setCats(c => c.filter(x => x.id !== id));
   const addSub = (catId) => {
@@ -496,25 +661,62 @@ function CatModal({ categories, onChange, onClose }) {
   };
   const delSub = (catId, subId) => setCats(c => c.map(cat => cat.id === catId ? { ...cat, subcats: cat.subcats.filter(s => s.id !== subId) } : cat));
 
+  // Drag-to-reorder categories
+  const onCatDragStart = (i) => setDragIdx(i);
+  const onCatDrop = (i) => {
+    if (dragIdx === null || dragIdx === i) { setDragIdx(null); return; }
+    const next = [...cats];
+    const [removed] = next.splice(dragIdx, 1);
+    next.splice(i, 0, removed);
+    setCats(next); setDragIdx(null);
+  };
+
+  // Drag-to-reorder subcategories
+  const onSubDragStart = (catId, idx) => setDragSubIdx({ catId, idx });
+  const onSubDrop = (catId, idx) => {
+    if (!dragSubIdx || dragSubIdx.catId !== catId || dragSubIdx.idx === idx) { setDragSubIdx(null); return; }
+    setCats(c => c.map(cat => {
+      if (cat.id !== catId) return cat;
+      const subs = [...cat.subcats];
+      const [removed] = subs.splice(dragSubIdx.idx, 1);
+      subs.splice(idx, 0, removed);
+      return { ...cat, subcats: subs };
+    }));
+    setDragSubIdx(null);
+  };
+
   return (
     <Modal title="Categorías" onClose={onClose} wide={true}>
-      <div style={{ maxHeight: 320, overflowY: "auto", marginBottom: 14 }}>
-        {cats.map(c => (
-          <div key={c.id} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 14, background: T.bg, border: `1px solid ${T.border}` }}>
-              <span style={{ width: 12, height: 12, borderRadius: 4, background: c.color, display: "inline-block", flexShrink: 0 }} />
-              <span style={{ fontSize: 18 }}>{c.icon}</span>
+      <p style={{ fontSize: 11, color: T.muted, marginBottom: 10 }}>Arrastrá ≡ para reordenar. Tocá el ícono para cambiarlo.</p>
+      <div style={{ maxHeight: 340, overflowY: "auto", marginBottom: 14 }}>
+        {cats.map((c, i) => (
+          <div key={c.id} style={{ marginBottom: 6, opacity: dragIdx === i ? 0.4 : 1, transition: "opacity .15s" }}
+            draggable onDragStart={() => onCatDragStart(i)} onDragOver={e => e.preventDefault()} onDrop={() => onCatDrop(i)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 14, background: T.bg, border: `1px solid ${T.border}` }}>
+              {/* Drag handle */}
+              <span style={{ cursor: "grab", color: T.subtle, fontSize: 16, flexShrink: 0, userSelect: "none" }}>≡</span>
+              {/* Icon (clickable to change) */}
+              <div onClick={() => { setEditingIconFor(c.id); setShowIconPicker(true); }} style={{ cursor: "pointer", borderRadius: 8, padding: 2 }} title="Cambiar ícono">
+                <CatIcon icon={c.icon} size={32}/>
+              </div>
               <span style={{ color: T.text, flex: 1, fontSize: 14, fontWeight: 500 }}>{c.name}</span>
-              <button onClick={() => setExpandedCat(expandedCat === c.id ? null : c.id)} style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                {expandedCat === c.id ? "▲" : "▼"} subcats ({c.subcats.length})
+              <button onClick={() => setExpandedCat(expandedCat === c.id ? null : c.id)} style={{ background: "none", border: "none", color: T.accent, cursor: "pointer", fontSize: 11, fontWeight: 600 }}>
+                {expandedCat === c.id ? "▲" : "▼"} ({c.subcats.length})
               </button>
-              <button onClick={() => delCat(c.id)} style={{ background: "none", border: "none", color: T.warn, cursor: "pointer", fontSize: 16 }}>✕</button>
+              <button onClick={() => delCat(c.id)} style={{ background: "none", border: "none", color: T.warn, cursor: "pointer", fontSize: 15 }}>✕</button>
             </div>
             {expandedCat === c.id && (
-              <div style={{ marginLeft: 16, marginTop: 4, padding: "12px 14px", background: T.accentLt, borderRadius: 12 }}>
-                {c.subcats.map(s => (
-                  <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${T.border}` }}>
-                    <span style={{ color: T.text, fontSize: 13 }}>• {s.name}</span>
+              <div style={{ marginLeft: 16, marginTop: 4, padding: "10px 12px", background: T.accentLt, borderRadius: 12 }}>
+                {c.subcats.map((s, si) => (
+                  <div key={s.id} draggable
+                    onDragStart={() => onSubDragStart(c.id, si)}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => onSubDrop(c.id, si)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "5px 0", borderBottom: `1px solid ${T.border}`, opacity: dragSubIdx?.catId === c.id && dragSubIdx?.idx === si ? 0.4 : 1, cursor: "grab" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ color: T.subtle, fontSize: 13 }}>≡</span>
+                      <span style={{ color: T.text, fontSize: 13 }}>• {s.name}</span>
+                    </div>
                     <button onClick={() => delSub(c.id, s.id)} style={{ background: "none", border: "none", color: T.warn, cursor: "pointer", fontSize: 12 }}>✕</button>
                   </div>
                 ))}
@@ -528,14 +730,43 @@ function CatModal({ categories, onChange, onClose }) {
           </div>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
-        <select value={newIcon} onChange={e => setNewIcon(e.target.value)} style={{ background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px", color: T.text, fontSize: 18, cursor: "pointer" }}>
-          {icons.map(ic => <option key={ic}>{ic}</option>)}
-        </select>
-        <input placeholder="Nombre de la categoría" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCat()}
-          style={{ flex: 1, background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
-        <Btn onClick={addCat}>+</Btn>
+
+      {/* Nueva categoría */}
+      <div style={{ background: T.accentLt, borderRadius: 14, padding: 12, marginBottom: 14 }}>
+        <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Nueva categoría</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+          <div onClick={() => { setEditingIconFor("new"); setShowIconPicker(true); }} style={{ cursor: "pointer", borderRadius: 10, padding: 2, border: `2px solid ${T.border}`, background: T.surface }} title="Elegir ícono">
+            <CatIcon icon={newIcon} size={38}/>
+          </div>
+          <input placeholder="Nombre de la categoría" value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && addCat()}
+            style={{ flex: 1, background: T.surface, border: `1.5px solid ${T.border}`, borderRadius: 10, padding: "10px 14px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+          <Btn onClick={addCat} style={{ padding: "10px 16px" }}>+</Btn>
+        </div>
       </div>
+
+      {/* Icon picker modal overlay */}
+      {showIconPicker && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: T.surface, borderRadius: 20, padding: 20, width: 360, maxWidth: "95vw", boxShadow: T.shadowLg }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <span style={{ fontWeight: 700, fontSize: 15, color: T.text }}>Elegir ícono</span>
+              <button onClick={() => setShowIconPicker(false)} style={{ background: T.bg, border: "none", borderRadius: 8, width: 28, height: 28, cursor: "pointer", color: T.muted, fontSize: 14 }}>✕</button>
+            </div>
+            <IconPicker
+              selected={editingIconFor === "new" ? newIcon : (cats.find(c => c.id === editingIconFor)?.icon || "")}
+              onSelect={key => {
+                if (editingIconFor === "new") {
+                  setNewIcon(key);
+                } else {
+                  setCats(cs => cs.map(c => c.id === editingIconFor ? { ...c, icon: key } : c));
+                }
+                setShowIconPicker(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 10 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
         <Btn onClick={() => { onChange(cats); onClose(); }} style={{ flex: 1 }}>Guardar</Btn>
@@ -1105,7 +1336,7 @@ export default function App() {
                 ? <p style={{ color: T.subtle, fontSize: 14, textAlign: "center", padding: "22px 0" }}>No hay gastos en este período</p>
                 : [...monthExp].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5).map(e => { const cat = catMap[e.catId]; return (
                   <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: `1px solid ${T.border}` }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: cat?.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>{cat?.icon || "💰"}</div>
+                    <CatIcon icon={cat?.icon || "otros"} size={36}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 13, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.desc || cat?.name || "Gasto"}</p>
                       <p style={{ margin: 0, fontSize: 11, color: T.muted }}>{e.date}</p>
@@ -1127,7 +1358,7 @@ export default function App() {
                 const cat = catMap[e.catId]; const sub = cat?.subcats?.find(s => s.id === e.subCatId);
                 return (
                   <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "11px 0", borderBottom: `1px solid ${T.border}` }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 10, background: cat?.color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, flexShrink: 0 }}>{cat?.icon || "💰"}</div>
+                    <CatIcon icon={cat?.icon || "otros"} size={36}/>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: 13, color: T.text, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.desc || cat?.name || "Gasto"}</p>
                       <p style={{ margin: 0, fontSize: 11, color: T.muted }}>{cat?.name}{sub ? ` › ${sub.name}` : ""} · {e.date}</p>
