@@ -947,21 +947,56 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
             const pct = (d.value / total * 100);
             const rank = items.length > 1 ? (d.value - minVal) / (maxVal - minVal) : 1;
             const colors = heatColor(rank);
-            const showName = d.w > 52 && d.h > 36;
-            const showAmt = d.w > 58 && d.h > 52;
-            const showPct = d.w > 44 && d.h > 28;
-            const showIcon = d.w > 28 && d.h > 24;
             const GAP = 2;
+            const W = Math.max(d.w - GAP * 2, 2);
+            const H = Math.max(d.h - GAP * 2, 2);
+            // Icon size scaled to cell
+            const iconSz = W > 100 ? 28 : W > 60 ? 22 : W > 40 ? 16 : 0;
+            const showIcon = iconSz > 0 && H > 28;
+            const showName = W > 38 && H > 24;
+            const showAmt  = W > 65 && H > 55;
+            const showPct  = W > 38 && H > 20 && !showAmt;
+            // Font size based on cell width
+            const nameFz = W > 110 ? 11 : W > 70 ? 10 : 8;
+            const amtFz  = W > 110 ? 10 : 8;
             return (
               <div key={d.id}
                 onMouseEnter={() => setHovered(d.id)} onMouseLeave={() => setHovered(null)}
                 onClick={() => onCatClick && onCatClick(d)}
-                title={`${d.icon} ${d.name}: ${fmt(d.value)} (${pct.toFixed(1)}%)`}
-                style={{ position: "absolute", left: d.x + GAP, top: d.y + GAP, width: Math.max(d.w - GAP * 2, 2), height: Math.max(d.h - GAP * 2, 2), background: isHov ? colors.border : colors.bg, border: `2px solid ${isHov ? "#fff" : colors.border}`, borderRadius: 8, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", padding: 4, boxSizing: "border-box", transition: "all .18s ease", transform: isHov ? "scale(1.03)" : "scale(1)", zIndex: isHov ? 3 : 1, boxShadow: isHov ? "0 4px 20px rgba(0,0,0,.4)" : "none", animation: `fadeIn .35s ${i * 25}ms both` }}>
-                {showIcon && <span style={{ fontSize: showName ? (d.w > 90 ? 20 : 14) : 10, lineHeight: 1, marginBottom: 1 }}>{d.icon}</span>}
-                {showName && <span style={{ fontSize: d.w > 90 ? 11 : 9, color: "#fff", fontWeight: 700, textAlign: "center", lineHeight: 1.2, maxWidth: "95%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>}
-                {showAmt && <span style={{ fontSize: d.w > 90 ? 10 : 8, color: "rgba(255,255,255,.9)", fontWeight: 700, marginTop: 1 }}>{fmt(d.value)}</span>}
-                {showPct && <span style={{ fontSize: 8, color: "rgba(255,255,255,.7)", marginTop: 1 }}>{pct.toFixed(0)}%</span>}
+                title={`${d.name}: ${fmt(d.value)} (${pct.toFixed(1)}%)`}
+                style={{ position: "absolute", left: d.x + GAP, top: d.y + GAP, width: W, height: H,
+                  background: isHov ? colors.border : colors.bg,
+                  border: `2px solid ${isHov ? "#fff" : colors.border}`,
+                  borderRadius: 8, cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  overflow: "hidden", padding: 3, boxSizing: "border-box",
+                  transition: "all .18s ease", transform: isHov ? "scale(1.03)" : "scale(1)",
+                  zIndex: isHov ? 3 : 1, boxShadow: isHov ? "0 4px 20px rgba(0,0,0,.4)" : "none",
+                  animation: `fadeIn .35s ${i * 25}ms both` }}>
+                {/* iOS icon */}
+                {showIcon && (
+                  <div style={{ marginBottom: 2, filter: "drop-shadow(0 1px 2px rgba(0,0,0,.3))" }}>
+                    <CatIcon icon={d.icon} size={iconSz}/>
+                  </div>
+                )}
+                {/* Name — always show with text shadow for readability */}
+                {showName && (
+                  <span style={{
+                    fontSize: nameFz, color: "#fff", fontWeight: 700,
+                    textAlign: "center", lineHeight: 1.2,
+                    maxWidth: "98%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    textShadow: "0 1px 3px rgba(0,0,0,.6)",
+                    display: "block"
+                  }}>{d.name}</span>
+                )}
+                {/* Amount */}
+                {showAmt && (
+                  <span style={{ fontSize: amtFz, color: "rgba(255,255,255,.95)", fontWeight: 700, marginTop: 1, textShadow: "0 1px 2px rgba(0,0,0,.5)" }}>{fmt(d.value)}</span>
+                )}
+                {/* Pct (only if no amount) */}
+                {showPct && (
+                  <span style={{ fontSize: 8, color: "rgba(255,255,255,.85)", marginTop: 1, textShadow: "0 1px 2px rgba(0,0,0,.4)" }}>{pct.toFixed(0)}%</span>
+                )}
               </div>
             );
           })
@@ -973,8 +1008,8 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
           const colors = heatColor(rank);
           return (
             <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: colors.bg, display: "inline-block" }} />
-              <span style={{ fontSize: 11, color: T.muted }}>{d.icon} {d.name} {(d.value / total * 100).toFixed(0)}%</span>
+              <CatIcon icon={d.icon} size={16}/>
+              <span style={{ fontSize: 11, color: T.muted }}>{d.name} {(d.value / total * 100).toFixed(0)}%</span>
             </div>
           );
         })}
