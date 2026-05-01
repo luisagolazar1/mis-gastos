@@ -345,6 +345,7 @@ function IconReport({ active }) {
     </svg>
   );
 }
+function IconExport() {
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill="#1abc9c"/>
@@ -1426,6 +1427,8 @@ Respondé en español con este formato JSON exacto (sin markdown, solo JSON):
     </div>
   );
 }
+
+function ShoppingList({ categories, onAddExpense }) {
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", qty: 1, price: "" });
   const [manualTotal, setManualTotal] = useState("");
