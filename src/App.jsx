@@ -1627,25 +1627,30 @@ export default function App() {
           <span style={{ fontWeight: 800, fontSize: 16, color: T.yellow, letterSpacing: "-.3px" }}>Mis Gastos</span>
         </div>
         <div style={{ display: "flex", gap: 5, alignItems: "center", padding: "6px 0" }}>
-          <button onClick={() => setModal("currency")} style={{ background: "rgba(255,255,255,.18)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
-            <span>{curInfo.symbol}</span><span>{curInfo.code}</span><span style={{ opacity: .7, fontSize: 10 }}>▼</span>
+          <button onClick={() => setModal("currency")} style={{ background: "rgba(255,255,255,.18)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 10, padding: "5px 8px", color: "#fff", fontFamily: "inherit", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 700, fontSize: 12 }}>
+              <span>{curInfo.symbol}</span><span>{curInfo.code}</span><span style={{ opacity: .7, fontSize: 9 }}>▼</span>
+            </div>
+            <span style={{ fontSize: 8, opacity: .8, fontWeight: 600, letterSpacing: .3 }}>Moneda</span>
           </button>
-          <button onClick={() => setModal("cats")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <button onClick={() => setModal("cats")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
               <rect width="28" height="28" rx="7" fill="#e67e22"/>
               <rect x="6" y="8" width="7" height="7" rx="2" fill="white"/>
               <rect x="15" y="8" width="7" height="7" rx="2" fill="white"/>
               <rect x="6" y="17" width="7" height="7" rx="2" fill="white"/>
               <rect x="15" y="17" width="7" height="7" rx="2" fill="white"/>
             </svg>
+            <span style={{ fontSize: 8, color: "rgba(255,255,255,.85)", fontWeight: 600, letterSpacing: .3 }}>Categorías</span>
           </button>
-          <button onClick={() => setModal("budget")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <button onClick={() => setModal("budget")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
               <rect width="28" height="28" rx="7" fill="#27ae60"/>
               <circle cx="14" cy="14" r="7" fill="none" stroke="white" strokeWidth="2"/>
               <path d="M14 8v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round"/>
               <path d="M10 19l1.5-1.5M14 21v-2M18 19l-1.5-1.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
             </svg>
+            <span style={{ fontSize: 8, color: "rgba(255,255,255,.85)", fontWeight: 600, letterSpacing: .3 }}>Presupuesto</span>
           </button>
         </div>
       </div>
