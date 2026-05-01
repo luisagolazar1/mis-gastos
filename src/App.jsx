@@ -733,16 +733,14 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
 
       <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Por categoría (opcional)</p>
 
-      {/* Column headers */}
-      {prevPeriod && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
-          <div style={{ width: 28 }}/>
-          <span style={{ flex: 1, fontSize: 10, color: T.subtle, fontWeight: 600 }}>Categoría</span>
-          <span style={{ width: 80, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Actual</span>
-          <span style={{ width: 80, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Mes ant.</span>
-          <span style={{ width: 120, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Nuevo límite</span>
-        </div>
-      )}
+      {/* Column headers — grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
+        <div/>
+        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase" }}>Categoría</span>
+        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Actual</span>
+        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Mes ant.</span>
+        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Límite</span>
+      </div>
 
       {categories.map(c => {
         const prev    = prevSpending[c.id] || 0;
@@ -751,32 +749,26 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
         const diff    = limit > 0 ? limit - prev : 0;
         const overCurrent = limit > 0 && current > limit;
         return (
-          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 10 }}>
             <CatIcon icon={c.icon} size={28}/>
-            <span style={{ color: T.text, fontSize: 12, flex: 1 }}>{c.name}</span>
-            {/* Current period spending */}
-            <div style={{ width: 80, textAlign: "center" }}>
+            <span style={{ color: T.text, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+            <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: overCurrent ? T.warn : current > 0 ? T.accent : T.subtle }}>
                 {current > 0 ? fmt(current) : "—"}
               </div>
-              {overCurrent && <div style={{ fontSize: 8, color: T.warn }}>⚠️ excedido</div>}
+              {overCurrent && <div style={{ fontSize: 8, color: T.warn }}>⚠️</div>}
             </div>
-            {/* Previous period */}
-            {prevPeriod && (
-              <div style={{ width: 80, textAlign: "center" }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
-                  {prev > 0 ? fmt(prev) : "—"}
-                </div>
-                {limit > 0 && prev > 0 && (
-                  <div style={{ fontSize: 8, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
-                    {diff >= 0 ? `+${fmt(diff)}` : fmt(diff)}
-                  </div>
-                )}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
+                {prev > 0 ? fmt(prev) : "—"}
               </div>
-            )}
-            <div style={{ width: 120 }}>
-              <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 12, fontWeight: 600 }} />
+              {limit > 0 && prev > 0 && (
+                <div style={{ fontSize: 8, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
+                  {diff >= 0 ? `+${fmt(diff)}` : fmt(diff)}
+                </div>
+              )}
             </div>
+            <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 11, fontWeight: 600, padding: "6px 6px" }} />
           </div>
         );
       })}
@@ -1589,7 +1581,7 @@ export default function App() {
   const catAlerts = useMemo(() => categories.filter(c => {
     const limit = Number(budgets[c.id]); if (!limit) return false;
     const spent = budgetExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0);
-    return spent >= limit * 0.9;
+    return spent > limit; // solo cuando SUPERA el límite
   }), [categories, budgets, budgetExp]);
 
   const pieData = useMemo(() => {
@@ -1638,8 +1630,23 @@ export default function App() {
           <button onClick={() => setModal("currency")} style={{ background: "rgba(255,255,255,.18)", border: "1px solid rgba(255,255,255,.3)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
             <span>{curInfo.symbol}</span><span>{curInfo.code}</span><span style={{ opacity: .7, fontSize: 10 }}>▼</span>
           </button>
-          <button onClick={() => setModal("cats")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>🏷️</button>
-          <button onClick={() => setModal("budget")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 12, fontFamily: "inherit", fontWeight: 600, cursor: "pointer" }}>🎯</button>
+          <button onClick={() => setModal("cats")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="7" fill="#e67e22"/>
+              <rect x="6" y="8" width="7" height="7" rx="2" fill="white"/>
+              <rect x="15" y="8" width="7" height="7" rx="2" fill="white"/>
+              <rect x="6" y="17" width="7" height="7" rx="2" fill="white"/>
+              <rect x="15" y="17" width="7" height="7" rx="2" fill="white"/>
+            </svg>
+          </button>
+          <button onClick={() => setModal("budget")} style={{ background: "rgba(255,255,255,.12)", border: "1px solid rgba(255,255,255,.25)", borderRadius: 10, padding: "5px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="7" fill="#27ae60"/>
+              <circle cx="14" cy="14" r="7" fill="none" stroke="white" strokeWidth="2"/>
+              <path d="M14 8v6l4 2" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+              <path d="M10 19l1.5-1.5M14 21v-2M18 19l-1.5-1.5" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -1883,15 +1890,6 @@ export default function App() {
           <IconShopping active={view === "shopping"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
           {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
-        </button>
-
-        {/* Reportes */}
-        <button onClick={() => setView("reports")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
-          onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
-          onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconReport active={view === "reports"} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: view === "reports" ? T.accent : T.muted, fontFamily: "inherit" }}>Reportes</span>
-          {view === "reports" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
         {/* Exportar */}
