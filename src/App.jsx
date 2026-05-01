@@ -333,7 +333,18 @@ function IconShopping({ active }) {
   );
 }
 
-function IconExport() {
+function IconReport({ active }) {
+  const bg = active ? "#9b59b6" : "#dde8dd";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill={bg}/>
+      <rect x="8" y="6" width="14" height="18" rx="2" fill="none" stroke="white" strokeWidth="1.8"/>
+      <line x1="11" y1="11" x2="19" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+      <line x1="11" y1="15" x2="19" y2="15" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+      <line x1="11" y1="19" x2="15" y2="19" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  );
+}
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill="#1abc9c"/>
@@ -605,6 +616,21 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
 function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
   const [vals, setVals] = useState({ ...budgets });
 
+  // Current period spending
+  const currentRange = useMemo(() => getBudgetPeriodRange(vals.__period || "month"), [vals.__period]);
+  const currentSpent = useMemo(() => {
+    if (!expenses?.length) return 0;
+    return expenses.filter(e => e.date >= currentRange.from && e.date <= currentRange.to)
+      .reduce((s, e) => s + e.amount, 0);
+  }, [expenses, currentRange]);
+  const currentCatSpent = useMemo(() => {
+    const acc = {};
+    if (!expenses?.length) return acc;
+    expenses.filter(e => e.date >= currentRange.from && e.date <= currentRange.to)
+      .forEach(e => { acc[e.catId] = (acc[e.catId] || 0) + e.amount; });
+    return acc;
+  }, [expenses, currentRange]);
+
   // Calculate previous period range based on selected period
   const prevPeriod = useMemo(() => {
     const now = new Date();
@@ -672,6 +698,28 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
         ))}
       </div>
 
+      {/* Current period status */}
+      {currentSpent > 0 && (
+        <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px 14px", marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Estado actual — {currentRange.label}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontSize: 13, color: T.text }}>Gastado hasta hoy</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: Number(vals.__total) > 0 && currentSpent > Number(vals.__total) ? T.warn : T.accent }}>{fmt(currentSpent)}</span>
+          </div>
+          {Number(vals.__total) > 0 && (
+            <>
+              <div style={{ height: 6, background: T.bg, borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
+                <div style={{ height: "100%", width: `${Math.min(currentSpent / Number(vals.__total) * 100, 100)}%`, background: currentSpent > Number(vals.__total) ? T.warn : `linear-gradient(90deg,${T.accent},${T.accentMd})`, borderRadius: 3, transition: "width .4s" }}/>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted }}>
+                <span>{(currentSpent / Number(vals.__total) * 100).toFixed(0)}% usado</span>
+                <span>{fmt(Math.max(Number(vals.__total) - currentSpent, 0))} disponible</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       <AmountInp label="Límite total" value={vals.__total || ""} onChange={v => setVals(vs => ({ ...vs, __total: v }))} placeholder="0,00 (sin límite)" />
 
       {/* Reference total from previous period */}
@@ -689,33 +737,44 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
           <div style={{ width: 28 }}/>
           <span style={{ flex: 1, fontSize: 10, color: T.subtle, fontWeight: 600 }}>Categoría</span>
-          <span style={{ width: 90, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Real {prevPeriod.label.split(" ")[0]}</span>
-          <span style={{ width: 130, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Nuevo límite</span>
+          <span style={{ width: 80, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Actual</span>
+          <span style={{ width: 80, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Mes ant.</span>
+          <span style={{ width: 120, fontSize: 10, color: T.subtle, fontWeight: 600, textAlign: "center" }}>Nuevo límite</span>
         </div>
       )}
 
       {categories.map(c => {
-        const prev = prevSpending[c.id] || 0;
-        const limit = Number(vals[c.id]) || 0;
-        const diff = limit > 0 ? limit - prev : 0;
+        const prev    = prevSpending[c.id] || 0;
+        const current = currentCatSpent[c.id] || 0;
+        const limit   = Number(vals[c.id]) || 0;
+        const diff    = limit > 0 ? limit - prev : 0;
+        const overCurrent = limit > 0 && current > limit;
         return (
           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <CatIcon icon={c.icon} size={28}/>
-            <span style={{ color: T.text, fontSize: 13, flex: 1 }}>{c.name}</span>
+            <span style={{ color: T.text, fontSize: 12, flex: 1 }}>{c.name}</span>
+            {/* Current period spending */}
+            <div style={{ width: 80, textAlign: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: overCurrent ? T.warn : current > 0 ? T.accent : T.subtle }}>
+                {current > 0 ? fmt(current) : "—"}
+              </div>
+              {overCurrent && <div style={{ fontSize: 8, color: T.warn }}>⚠️ excedido</div>}
+            </div>
+            {/* Previous period */}
             {prevPeriod && (
-              <div style={{ width: 90, textAlign: "center" }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
+              <div style={{ width: 80, textAlign: "center" }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
                   {prev > 0 ? fmt(prev) : "—"}
                 </div>
                 {limit > 0 && prev > 0 && (
-                  <div style={{ fontSize: 9, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
+                  <div style={{ fontSize: 8, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
                     {diff >= 0 ? `+${fmt(diff)}` : fmt(diff)}
                   </div>
                 )}
               </div>
             )}
-            <div style={{ width: 130 }}>
-              <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 13, fontWeight: 600 }} />
+            <div style={{ width: 120 }}>
+              <AmountInp value={vals[c.id] || ""} onChange={v => setVals(vs => ({ ...vs, [c.id]: v }))} placeholder="0,00" style={{ marginBottom: 0 }} inputStyle={{ fontSize: 12, fontWeight: 600 }} />
             </div>
           </div>
         );
@@ -1151,7 +1210,222 @@ function CategoryTreemap({ categories, monthExp, total, onCatClick }) {
   );
 }
 
-function ShoppingList({ categories, onAddExpense }) {
+// ── Report View ───────────────────────────────────────────────────────
+function ReportView({ expenses, categories, budgets, currency }) {
+  const [period, setPeriod] = useState("month");
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState(null);
+  const [error, setError] = useState(null);
+  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+
+  const periodRange = useMemo(() => getBudgetPeriodRange(period), [period]);
+
+  const periodExp = useMemo(() =>
+    expenses.filter(e => e.date >= periodRange.from && e.date <= periodRange.to),
+    [expenses, periodRange]
+  );
+
+  const totalSpent = useMemo(() => periodExp.reduce((s, e) => s + e.amount, 0), [periodExp]);
+  const budgetTotal = Number(budgets.__total) || 0;
+
+  const catSummary = useMemo(() => {
+    const acc = {};
+    periodExp.forEach(e => { acc[e.catId] = (acc[e.catId] || 0) + e.amount; });
+    return Object.entries(acc)
+      .map(([id, val]) => ({ name: catMap[id]?.name || "?", icon: catMap[id]?.icon || "otros", amount: val, pct: totalSpent > 0 ? (val/totalSpent*100).toFixed(1) : 0, limit: Number(budgets[id]) || 0 }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [periodExp, catMap, totalSpent, budgets]);
+
+  const generateReport = async () => {
+    if (!periodExp.length) return;
+    setLoading(true); setReport(null); setError(null);
+    try {
+      const periodLabel = period === "month" ? "mensual" : period === "week" ? "semanal" : "quincenal";
+      const prompt = `Sos un asesor financiero personal experto en finanzas personales en Argentina.
+Analizá los siguientes gastos del período ${periodLabel} (${periodRange.from} al ${periodRange.to}):
+
+RESUMEN:
+- Total gastado: ${fmt(totalSpent)}
+${budgetTotal > 0 ? `- Presupuesto total: ${fmt(budgetTotal)} (${totalSpent > budgetTotal ? "EXCEDIDO en " + fmt(totalSpent - budgetTotal) : "disponible: " + fmt(budgetTotal - totalSpent)})` : "- Sin presupuesto definido"}
+- Cantidad de transacciones: ${periodExp.length}
+
+GASTOS POR CATEGORÍA:
+${catSummary.map(c => `  • ${c.name}: ${fmt(c.amount)} (${c.pct}%)${c.limit > 0 ? ` [límite: ${fmt(c.limit)}${c.amount > c.limit ? " ⚠️ EXCEDIDO" : ""}]` : ""}`).join("\n")}
+
+Respondé en español con este formato JSON exacto (sin markdown, solo JSON):
+{
+  "titulo": "título del análisis",
+  "estado": "bien|atención|crítico",
+  "resumen": "2-3 oraciones resumiendo el período",
+  "puntos_positivos": ["punto 1", "punto 2"],
+  "puntos_negativos": ["punto 1", "punto 2"],
+  "recomendaciones": [
+    {"titulo": "título corto", "detalle": "explicación de 1-2 oraciones", "impacto": "alto|medio|bajo"},
+    {"titulo": "título corto", "detalle": "explicación de 1-2 oraciones", "impacto": "alto|medio|bajo"},
+    {"titulo": "título corto", "detalle": "explicación de 1-2 oraciones", "impacto": "alto|medio|bajo"}
+  ],
+  "meta_sugerida": "monto sugerido como presupuesto para el próximo período en números"
+}`;
+
+      const resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await resp.json();
+      const text = data.content?.[0]?.text || "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setReport(parsed);
+    } catch(e) {
+      setError("No se pudo generar el reporte. Intentá de nuevo.");
+    }
+    setLoading(false);
+  };
+
+  const stateColor = report?.estado === "bien" ? T.accentMd : report?.estado === "atención" ? T.orange : T.warn;
+  const stateEmoji = report?.estado === "bien" ? "✅" : report?.estado === "atención" ? "⚠️" : "🚨";
+  const impactColor = (i) => i === "alto" ? T.warn : i === "medio" ? T.orange : T.accentMd;
+
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto" }}>
+      {/* Period selector */}
+      <Card style={{ marginBottom: 14 }}>
+        <SectionLabel>Período de análisis</SectionLabel>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[["week","Semanal"],["biweekly","Quincenal"],["month","Mensual"]].map(([k,l]) => (
+            <button key={k} onClick={() => { setPeriod(k); setReport(null); }}
+              style={{ flex: 1, padding: "10px", borderRadius: 12, border: `1.5px solid ${period === k ? T.accent : T.border}`, background: period === k ? T.accentLt : "transparent", color: period === k ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13 }}>
+              {l}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>
+          📅 {periodRange.from} → {periodRange.to}
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+          <div style={{ background: T.bg, borderRadius: 12, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>GASTADO</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{fmt(totalSpent)}</div>
+          </div>
+          <div style={{ background: T.bg, borderRadius: 12, padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>TRANSACCIONES</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{periodExp.length}</div>
+          </div>
+          {budgetTotal > 0 && <>
+            <div style={{ background: totalSpent > budgetTotal ? T.warnLt : T.bg, borderRadius: 12, padding: "10px 14px", border: `1px solid ${totalSpent > budgetTotal ? "#f5c6c6" : T.border}` }}>
+              <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>PRESUPUESTO</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{fmt(budgetTotal)}</div>
+            </div>
+            <div style={{ background: T.bg, borderRadius: 12, padding: "10px 14px" }}>
+              <div style={{ fontSize: 10, color: T.muted, marginBottom: 3 }}>{totalSpent > budgetTotal ? "EXCEDIDO" : "DISPONIBLE"}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: totalSpent > budgetTotal ? T.warn : T.accentMd }}>{fmt(Math.abs(budgetTotal - totalSpent))}</div>
+            </div>
+          </>}
+        </div>
+
+        {/* Category breakdown */}
+        {catSummary.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 8 }}>Por categoría</div>
+            {catSummary.map((c, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <CatIcon icon={c.icon} size={24}/>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{c.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: c.limit > 0 && c.amount > c.limit ? T.warn : T.accent }}>{fmt(c.amount)}</span>
+                  </div>
+                  <div style={{ height: 4, background: T.bg, borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${c.pct}%`, background: c.limit > 0 && c.amount > c.limit ? T.warn : T.accentMd, borderRadius: 2 }}/>
+                  </div>
+                </div>
+                <span style={{ fontSize: 10, color: T.subtle, minWidth: 30, textAlign: "right" }}>{c.pct}%</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={generateReport} disabled={loading || !periodExp.length}
+          style={{ width: "100%", padding: "13px", borderRadius: 14, border: "none", cursor: periodExp.length ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 700, fontSize: 14, background: loading ? T.accentLt : "linear-gradient(135deg,#9b59b6,#6c3483)", color: loading ? T.muted : "#fff", transition: "opacity .2s", opacity: !periodExp.length ? 0.5 : 1 }}>
+          {loading ? "🤖 Analizando gastos..." : !periodExp.length ? "Sin gastos en este período" : "✨ Generar análisis con IA"}
+        </button>
+      </Card>
+
+      {/* Report result */}
+      {report && (
+        <div style={{ animation: "fadeSlideUp .4s ease both" }}>
+          {/* Header */}
+          <Card style={{ marginBottom: 12, borderLeft: `4px solid ${stateColor}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, color: T.muted, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Análisis IA</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{report.titulo}</div>
+              </div>
+              <span style={{ fontSize: 24 }}>{stateEmoji}</span>
+            </div>
+            <p style={{ fontSize: 13, color: T.muted, lineHeight: 1.6, margin: 0 }}>{report.resumen}</p>
+            {report.meta_sugerida && (
+              <div style={{ marginTop: 12, background: T.accentLt, borderRadius: 10, padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: T.muted }}>💡 Presupuesto sugerido próximo período</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmt(Number(report.meta_sugerida))}</span>
+              </div>
+            )}
+          </Card>
+
+          {/* Positives & Negatives */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <Card style={{ background: "#f0faf0" }}>
+              <div style={{ fontSize: 11, color: T.accentMd, fontWeight: 700, marginBottom: 8 }}>✅ Puntos positivos</div>
+              {report.puntos_positivos?.map((p, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.text, marginBottom: 5, display: "flex", gap: 6 }}>
+                  <span style={{ color: T.accentMd, flexShrink: 0 }}>•</span>{p}
+                </div>
+              ))}
+            </Card>
+            <Card style={{ background: "#fff8f0" }}>
+              <div style={{ fontSize: 11, color: T.orange, fontWeight: 700, marginBottom: 8 }}>⚠️ A mejorar</div>
+              {report.puntos_negativos?.map((p, i) => (
+                <div key={i} style={{ fontSize: 12, color: T.text, marginBottom: 5, display: "flex", gap: 6 }}>
+                  <span style={{ color: T.orange, flexShrink: 0 }}>•</span>{p}
+                </div>
+              ))}
+            </Card>
+          </div>
+
+          {/* Recommendations */}
+          <Card style={{ marginBottom: 14 }}>
+            <SectionLabel>Recomendaciones</SectionLabel>
+            {report.recomendaciones?.map((r, i) => (
+              <div key={i} style={{ padding: "12px", background: T.bg, borderRadius: 12, marginBottom: 8, borderLeft: `3px solid ${impactColor(r.impacto)}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{r.titulo}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: impactColor(r.impacto), background: impactColor(r.impacto) + "20", padding: "2px 7px", borderRadius: 6 }}>
+                    IMPACTO {r.impacto?.toUpperCase()}
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: T.muted, margin: 0, lineHeight: 1.5 }}>{r.detalle}</p>
+              </div>
+            ))}
+          </Card>
+
+          <button onClick={generateReport} disabled={loading}
+            style={{ width: "100%", padding: "10px", borderRadius: 12, border: `1.5px solid ${T.border}`, background: "transparent", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, color: T.muted }}>
+            🔄 Regenerar análisis
+          </button>
+        </div>
+      )}
+
+      {error && <div style={{ background: T.warnLt, border: `1px solid #f5c6c6`, borderRadius: 12, padding: "12px 16px", color: T.warn, fontSize: 13 }}>{error}</div>}
+    </div>
+  );
+}
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", qty: 1, price: "" });
   const [manualTotal, setManualTotal] = useState("");
@@ -1410,6 +1684,7 @@ export default function App() {
         )}
 
         {view === "shopping" && <ShoppingList categories={categories} onAddExpense={addExpense} />}
+        {view === "reports"  && <ReportView expenses={expenses} categories={categories} budgets={budgets} currency={currency} />}
 
         {view === "dashboard" && (
           <>
@@ -1605,6 +1880,15 @@ export default function App() {
           <IconShopping active={view === "shopping"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
           {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
+        </button>
+
+        {/* Reportes */}
+        <button onClick={() => setView("reports")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+          onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+          onMouseLeave={e => e.currentTarget.style.transform = "none"}>
+          <IconReport active={view === "reports"} />
+          <span style={{ fontSize: 10, fontWeight: 600, color: view === "reports" ? T.accent : T.muted, fontFamily: "inherit" }}>Reportes</span>
+          {view === "reports" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
         {/* Exportar */}
