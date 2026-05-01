@@ -1525,6 +1525,7 @@ export default function App() {
 
   // Protección: solo permitir guardar categorías DESPUÉS de haber cargado Firebase
   const firebaseLoaded = useRef(false);
+  const [budgetHistory, setBudgetHistory] = useState({});
 
   useEffect(() => {
     (async () => {
@@ -1533,22 +1534,30 @@ export default function App() {
         const c = await storage.get("categories"); if (c) setCategories(JSON.parse(c.value));
         const b = await storage.get("budgets");    if (b) setBudgets(JSON.parse(b.value));
         const cur = await storage.get("currency"); if (cur) { setCurrencyState(cur.value); fmt = makeFmt(cur.value); }
+        const bh = await storage.get("budgetHistory"); if (bh) setBudgetHistory(JSON.parse(bh.value));
       } catch {}
-      // Marcar como cargado SIEMPRE — incluso si Firebase falla
-      // Esto permite guardar cambios del usuario, pero nunca sobreescribe con DEFAULT_CATS
       firebaseLoaded.current = true;
     })();
   }, []);
 
   const saveCurrency = (code) => { setCurrencyState(code); fmt = makeFmt(code); storage.set("currency", code).catch(() => {}); };
   const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(() => {}); };
-  // Protección: nunca sobreescribir categorías con DEFAULT_CATS por error de carga
   const saveCats = (data) => {
-    if (!firebaseLoaded.current) return; // aún no cargó Firebase, no tocar
-    if (!data || data.length === 0) return; // nunca guardar lista vacía
+    if (!firebaseLoaded.current) return;
+    if (!data || data.length === 0) return;
     setCategories(data); storage.set("categories", JSON.stringify(data)).catch(() => {});
   };
-  const saveBudgets  = (data) => { setBudgets(data); storage.set("budgets", JSON.stringify(data)).catch(() => {}); };
+  const saveBudgets = (data) => {
+    setBudgets(data);
+    storage.set("budgets", JSON.stringify(data)).catch(() => {});
+    // Guardar snapshot para el período actual
+    const period = data.__period || "month";
+    const range  = getBudgetPeriodRange(period);
+    const key    = range.from.slice(0, 7); // "2026-05"
+    const updated = { ...budgetHistory, [key]: data };
+    setBudgetHistory(updated);
+    storage.set("budgetHistory", JSON.stringify(updated)).catch(() => {});
+  };
 
   const addExpense  = (exp) => saveExpenses([...expenses, exp]);
   const delExpense  = (id)  => saveExpenses(expenses.filter(e => e.id !== id));
@@ -1765,12 +1774,20 @@ export default function App() {
               </Card>
             </div>
 
-            {categories.filter(c => Number(budgets[c.id]) > 0).length > 0 && (
+            {(() => {
+              // Usar presupuesto del período visualizado, no el actual
+              const viewKey = filterMode === "month" ? filterMonth : filterMode === "year" ? filterYear : filterMonth;
+              const viewBudgets = budgetHistory[viewKey] || budgets;
+              const isCurrentPeriod = viewKey === currentMonth();
+              return categories.filter(c => Number(viewBudgets[c.id]) > 0).length > 0 && (
               <Card style={{ marginBottom: 16 }}>
-                <SectionLabel>Presupuestos por categoría</SectionLabel>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <SectionLabel>Presupuestos por categoría</SectionLabel>
+                  {!isCurrentPeriod && <span style={{ fontSize: 10, color: T.subtle, background: T.accentLt, padding: "2px 8px", borderRadius: 6 }}>📅 Presupuesto de {viewKey}</span>}
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))", gap: 10 }}>
-                  {categories.filter(c => Number(budgets[c.id]) > 0).map(c => {
-                    const limit = Number(budgets[c.id]);
+                  {categories.filter(c => Number(viewBudgets[c.id]) > 0).map(c => {
+                    const limit = Number(viewBudgets[c.id]);
                     const spent = monthExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0);
                     const pct = Math.min((spent / limit) * 100, 100); const over = spent > limit;
                     return (
@@ -1794,7 +1811,8 @@ export default function App() {
                   })}
                 </div>
               </Card>
-            )}
+              );
+            })()}
 
             <Card>
               <SectionLabel>Últimos gastos</SectionLabel>
