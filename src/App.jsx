@@ -1399,7 +1399,12 @@ export default function App() {
             <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
             <div style={{ fontSize: 13 }}>
               {overBudget && <p style={{ color: T.warn, margin: 0, fontWeight: 600 }}>Superaste el presupuesto {budgetRange.label} ({fmt(budgetSpent)} / {fmt(budgetTotal)})</p>}
-              {catAlerts.map(c => { const spent = budgetExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0); const limit = Number(budgets[c.id]); return <p key={c.id} style={{ color: T.orange, margin: "4px 0 0" }}>{c.icon} {c.name}: {fmt(spent)} / {fmt(limit)}</p>; })}
+              {catAlerts.map(c => { const spent = budgetExp.filter(e => e.catId === c.id).reduce((s, e) => s + e.amount, 0); const limit = Number(budgets[c.id]); return (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <CatIcon icon={c.icon} size={18}/>
+                  <p style={{ color: T.orange, margin: 0 }}>{c.name}: {fmt(spent)} / {fmt(limit)}</p>
+                </div>
+              ); })}
             </div>
           </div>
         )}
