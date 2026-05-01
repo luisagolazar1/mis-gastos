@@ -1347,8 +1347,11 @@ export default function App() {
                     const pct = Math.min((spent / limit) * 100, 100); const over = spent > limit;
                     return (
                       <div key={c.id} style={{ padding: "12px", background: T.bg, borderRadius: 14, border: `1px solid ${over ? "#f5c6c6" : T.border}` }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-                          <span style={{ fontSize: 13, fontWeight: 500 }}>{c.icon} {c.name}</span>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <CatIcon icon={c.icon} size={22}/>
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>{c.name}</span>
+                          </div>
                           <span style={{ fontSize: 11, color: over ? T.warn : T.muted, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
                         </div>
                         <div style={{ height: 5, background: T.border, borderRadius: 3, overflow: "hidden" }}>
