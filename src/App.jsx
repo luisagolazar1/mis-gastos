@@ -702,7 +702,6 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
           <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <CatIcon icon={c.icon} size={28}/>
             <span style={{ color: T.text, fontSize: 13, flex: 1 }}>{c.name}</span>
-            {/* Previous period reference */}
             {prevPeriod && (
               <div style={{ width: 90, textAlign: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
@@ -721,6 +720,45 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
           </div>
         );
       })}
+
+      {/* ── Subtotal sticky bar ──────────────────────────────────── */}
+      {(() => {
+        const totalLimit  = Number(vals.__total) || 0;
+        const sumCats     = categories.reduce((s, c) => s + (Number(vals[c.id]) || 0), 0);
+        const remaining   = totalLimit > 0 ? totalLimit - sumCats : null;
+        const over        = remaining !== null && remaining < 0;
+        const pct         = totalLimit > 0 ? Math.min(sumCats / totalLimit * 100, 100) : 0;
+        if (sumCats === 0) return null;
+        return (
+          <div style={{ position: "sticky", bottom: 0, background: T.surface, borderTop: `2px solid ${T.border}`, marginTop: 8, paddingTop: 12 }}>
+            {/* Progress bar */}
+            {totalLimit > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginBottom: 4 }}>
+                  <span>Categorías asignadas</span>
+                  <span style={{ color: over ? T.warn : T.accent, fontWeight: 700 }}>{pct.toFixed(0)}% del límite total</span>
+                </div>
+                <div style={{ height: 6, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${pct}%`, background: over ? T.warn : `linear-gradient(90deg,${T.accent},${T.accentMd})`, borderRadius: 3, transition: "width .3s" }}/>
+                </div>
+              </div>
+            )}
+            {/* Totals row */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, background: T.accentLt, borderRadius: 10, padding: "8px 12px" }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 2 }}>Subtotal categorías</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmt(sumCats)}</div>
+              </div>
+              {totalLimit > 0 && (
+                <div style={{ flex: 1, background: over ? T.warnLt : T.accentLt, borderRadius: 10, padding: "8px 12px", border: `1px solid ${over ? "#f5c6c6" : T.border}` }}>
+                  <div style={{ fontSize: 10, color: T.muted, marginBottom: 2 }}>{over ? "⚠️ Excede en" : "Sin asignar"}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: over ? T.warn : T.accentMd }}>{fmt(Math.abs(remaining))}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
