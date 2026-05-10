@@ -650,6 +650,11 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
             <span style={{ fontSize: 12, color: T.accent, fontWeight: 700 }}>Total: {fmt(itemsTotal)}</span>
           </div>
 
+          {/* Paste helper */}
+          <div style={{ background: T.accentLt, borderRadius: 10, padding: "8px 12px", marginBottom: 10, fontSize: 11, color: T.muted }}>
+            💡 <strong>Tip:</strong> Pegá toda la columna de descripciones o montos desde Excel directamente en cualquier campo — se distribuye automáticamente.
+          </div>
+
           {/* Column headers */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 90px 28px", gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
             <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700 }}>Descripción</span>
@@ -666,6 +671,25 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
                   value={item.desc}
                   onChange={e => setItem(item.id, "desc", e.target.value)}
                   onKeyDown={e => e.key === "Enter" && idx === items.length - 1 && addItem()}
+                  onPaste={e => {
+                    const text = e.clipboardData.getData("text");
+                    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length > 1) {
+                      e.preventDefault();
+                      setItems(prev => {
+                        const before = prev.slice(0, idx);
+                        const after  = prev.slice(idx + 1);
+                        const updated = lines.map((l, i) => ({
+                          ...(prev[idx + i] || { id: Date.now() + i, amount: "", subCatId: "" }),
+                          id: prev[idx + i]?.id || Date.now() + i * 7,
+                          desc: l,
+                        }));
+                        // Fill remaining existing rows
+                        const remaining = after.slice(lines.length - 1);
+                        return [...before, ...updated, ...remaining];
+                      });
+                    }
+                  }}
                   style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }}
                 />
                 <select value={item.subCatId} onChange={e => {
@@ -690,6 +714,24 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
                   value={item.amount}
                   onChange={e => setItem(item.id, "amount", e.target.value.replace(/[^0-9.]/g, ""))}
                   inputMode="decimal"
+                  onPaste={e => {
+                    const text = e.clipboardData.getData("text");
+                    const lines = text.split(/\r?\n/).map(l => l.trim().replace(/[^0-9.,]/g, "").replace(",", ".")).filter(Boolean);
+                    if (lines.length > 1) {
+                      e.preventDefault();
+                      setItems(prev => {
+                        const before = prev.slice(0, idx);
+                        const after  = prev.slice(idx + 1);
+                        const updated = lines.map((l, i) => ({
+                          ...(prev[idx + i] || { id: Date.now() + i, desc: "", subCatId: "" }),
+                          id: prev[idx + i]?.id || Date.now() + i * 13,
+                          amount: l,
+                        }));
+                        const remaining = after.slice(lines.length - 1);
+                        return [...before, ...updated, ...remaining];
+                      });
+                    }
+                  }}
                   style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 8px", color: T.accent, fontSize: 12, fontWeight: 700, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box", textAlign: "right" }}
                 />
                 <button onClick={() => delItem(item.id)} disabled={items.length === 1}
