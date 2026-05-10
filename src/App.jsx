@@ -651,7 +651,7 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
           </div>
 
           {/* Column headers */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 28px", gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 90px 28px", gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
             <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700 }}>Descripción</span>
             <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700 }}>Subcategoría</span>
             <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "right" }}>Monto</span>
@@ -660,7 +660,7 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
 
           <div style={{ maxHeight: 320, overflowY: "auto" }}>
             {items.map((item, idx) => (
-              <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 28px", gap: 6, marginBottom: 6, alignItems: "center" }}>
+              <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 140px 90px 28px", gap: 6, marginBottom: 6, alignItems: "center" }}>
                 <input
                   placeholder="ej: Spotify, Peugeot..."
                   value={item.desc}
@@ -668,10 +668,22 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
                   onKeyDown={e => e.key === "Enter" && idx === items.length - 1 && addItem()}
                   style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }}
                 />
-                <select value={item.subCatId} onChange={e => setItem(item.id, "subCatId", e.target.value)}
+                <select value={item.subCatId} onChange={e => {
+                  if (e.target.value === "__new__") {
+                    const name = prompt("Nombre de la nueva subcategoría:");
+                    if (name?.trim() && cat) {
+                      const newSub = { id: Date.now(), name: name.trim() };
+                      onAddCategory({ ...cat, subcats: [...cat.subcats, newSub] }, true);
+                      setItem(item.id, "subCatId", newSub.id);
+                    }
+                  } else {
+                    setItem(item.id, "subCatId", e.target.value);
+                  }
+                }}
                   style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 6px", color: T.text, fontSize: 11, outline: "none", fontFamily: "inherit", width: "100%" }}>
                   <option value="">—</option>
                   {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  <option value="__new__">✚ Nueva subcategoría...</option>
                 </select>
                 <input
                   placeholder="0,00"
