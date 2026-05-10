@@ -571,7 +571,7 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
           </button>
           <button onClick={() => setMultiMode(true)}
             style={{ flex: 1, padding: "8px", borderRadius: 10, border: `1.5px solid ${multiMode ? T.accent : T.border}`, background: multiMode ? T.accentLt : "transparent", color: multiMode ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12 }}>
-            📋 Resumen tarjeta
+            📋 Gastos múltiples
           </button>
         </div>
       )}
