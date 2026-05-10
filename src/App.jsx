@@ -551,7 +551,7 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
       const validItems = items.filter(i => i.desc.trim() && Number(i.amount) > 0);
       if (!validItems.length || !form.catId) return;
       const newExps = validItems.map(i => ({ id: Date.now() + Math.random() * 1000, amount: Number(i.amount), catId: Number(form.catId), subCatId: i.subCatId ? Number(i.subCatId) : null, desc: i.desc.trim(), date: form.date }));
-      newExps.forEach(e => onSave(e));
+      onSave(newExps); // pass array — addExpense handles batch
     } else {
       if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
       onSave({ id: expense?.id || Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
@@ -1671,7 +1671,13 @@ export default function App() {
     storage.set("budgetHistory", JSON.stringify(updated)).catch(() => {});
   };
 
-  const addExpense  = (exp) => saveExpenses([...expenses, exp]);
+  const addExpense  = (exp) => {
+    if (Array.isArray(exp)) {
+      saveExpenses([...expenses, ...exp]);
+    } else {
+      saveExpenses([...expenses, exp]);
+    }
+  };
   const delExpense  = (id)  => saveExpenses(expenses.filter(e => e.id !== id));
   const editExpense = (upd) => saveExpenses(expenses.map(e => e.id === upd.id ? upd : e));
 
