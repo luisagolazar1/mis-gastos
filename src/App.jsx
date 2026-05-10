@@ -521,6 +521,15 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
   const [newCatIcon, setNewCatIcon] = useState("otros");
   const [newSubName, setNewSubName] = useState("");
   const [showNewCatIconPicker, setShowNewCatIconPicker] = useState(false);
+
+  // Multi-item mode (for credit card statements)
+  const [multiMode, setMultiMode] = useState(false);
+  const [items, setItems] = useState([{ id: 1, desc: "", amount: "", subCatId: "" }]);
+  const addItem = () => setItems(p => [...p, { id: Date.now(), desc: "", amount: "", subCatId: "" }]);
+  const delItem = (id) => setItems(p => p.filter(i => i.id !== id));
+  const setItem = (id, k, v) => setItems(p => p.map(i => i.id === id ? { ...i, [k]: v } : i));
+  const itemsTotal = items.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+
   const cat = categories.find(c => c.id === Number(form.catId));
   const subcats = cat?.subcats || [];
 
@@ -535,15 +544,39 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
     onAddCategory({ ...cat, subcats: [...cat.subcats, newSub] }, true);
     set("subCatId", newSub.id); setNewSubName(""); setShowNewSub(false);
   };
+
   const save = () => {
-    if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
-    onSave({ id: expense?.id || Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
+    if (multiMode) {
+      // Save each item as separate expense
+      const validItems = items.filter(i => i.desc.trim() && Number(i.amount) > 0);
+      if (!validItems.length || !form.catId) return;
+      const newExps = validItems.map(i => ({ id: Date.now() + Math.random() * 1000, amount: Number(i.amount), catId: Number(form.catId), subCatId: i.subCatId ? Number(i.subCatId) : null, desc: i.desc.trim(), date: form.date }));
+      newExps.forEach(e => onSave(e));
+    } else {
+      if (!form.amount || isNaN(Number(form.amount)) || !form.catId) return;
+      onSave({ id: expense?.id || Date.now(), amount: Number(form.amount), catId: Number(form.catId), subCatId: form.subCatId ? Number(form.subCatId) : null, desc: form.desc, date: form.date });
+    }
     onClose();
   };
 
   return (
-    <Modal title={isEdit ? "Editar gasto" : "Nuevo gasto"} onClose={onClose}>
-      <AmountInp label="Monto" value={form.amount} onChange={v => set("amount", v)} placeholder="0,00" inputStyle={{ fontSize: 22 }} />
+    <Modal title={isEdit ? "Editar gasto" : "Nuevo gasto"} onClose={onClose} wide={multiMode}>
+
+      {/* Mode toggle — only for new expenses */}
+      {!isEdit && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          <button onClick={() => setMultiMode(false)}
+            style={{ flex: 1, padding: "8px", borderRadius: 10, border: `1.5px solid ${!multiMode ? T.accent : T.border}`, background: !multiMode ? T.accentLt : "transparent", color: !multiMode ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12 }}>
+            💳 Gasto simple
+          </button>
+          <button onClick={() => setMultiMode(true)}
+            style={{ flex: 1, padding: "8px", borderRadius: 10, border: `1.5px solid ${multiMode ? T.accent : T.border}`, background: multiMode ? T.accentLt : "transparent", color: multiMode ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12 }}>
+            📋 Resumen tarjeta
+          </button>
+        </div>
+      )}
+
+      {/* Category selector — shared */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Categoría</label>
@@ -560,11 +593,7 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
               <input placeholder="Nombre..." value={newCatName} onChange={e => setNewCatName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewCat()}
                 style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
-            {showNewCatIconPicker && (
-              <div style={{ marginBottom: 8 }}>
-                <IconPicker selected={newCatIcon} onSelect={k => { setNewCatIcon(k); setShowNewCatIconPicker(false); }}/>
-              </div>
-            )}
+            {showNewCatIconPicker && <div style={{ marginBottom: 8 }}><IconPicker selected={newCatIcon} onSelect={k => { setNewCatIcon(k); setShowNewCatIconPicker(false); }}/></div>}
             <Btn onClick={addNewCat} style={{ width: "100%", padding: "8px" }}>✓ Crear categoría</Btn>
           </div>
         ) : (
@@ -579,36 +608,107 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
           </div>
         )}
       </div>
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-          <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Subcategoría <span style={{ color: T.subtle, textTransform: "none", fontWeight: 400 }}>(opcional)</span></label>
-          {cat && <button onClick={() => { setShowNewSub(!showNewSub); setShowNewCat(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
-            {showNewSub ? "✕ Cancelar" : "+ Nueva subcategoría"}
-          </button>}
-        </div>
-        {showNewSub ? (
-          <div style={{ background: T.accentLt, borderRadius: 12, padding: 12, marginBottom: 8 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input placeholder="ej: Almuerzo, Supermercado..." value={newSubName} onChange={e => setNewSubName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewSub()}
-                style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
-              <Btn onClick={addNewSub} style={{ padding: "8px 14px" }}>✓ Crear</Btn>
+
+      {/* ── SIMPLE MODE ── */}
+      {!multiMode && (
+        <>
+          <AmountInp label="Monto" value={form.amount} onChange={v => set("amount", v)} placeholder="0,00" inputStyle={{ fontSize: 22 }} />
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+              <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Subcategoría <span style={{ color: T.subtle, textTransform: "none", fontWeight: 400 }}>(opcional)</span></label>
+              {cat && <button onClick={() => { setShowNewSub(!showNewSub); setShowNewCat(false); }} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "2px 6px", borderRadius: 6 }}>
+                {showNewSub ? "✕ Cancelar" : "+ Nueva subcategoría"}
+              </button>}
             </div>
+            {showNewSub ? (
+              <div style={{ background: T.accentLt, borderRadius: 12, padding: 12, marginBottom: 8 }}>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input placeholder="ej: Almuerzo, Supermercado..." value={newSubName} onChange={e => setNewSubName(e.target.value)} onKeyDown={e => e.key === "Enter" && addNewSub()}
+                    style={{ flex: 1, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 12px", color: T.text, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
+                  <Btn onClick={addNewSub} style={{ padding: "8px 14px" }}>✓ Crear</Btn>
+                </div>
+              </div>
+            ) : subcats.length > 0 ? (
+              <select value={form.subCatId} onChange={e => set("subCatId", e.target.value)}
+                style={{ width: "100%", background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "10px 13px", color: T.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}>
+                <option value="">— Sin subcategoría —</option>
+                {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            ) : (
+              <p style={{ fontSize: 12, color: T.subtle, margin: 0, padding: "8px 0" }}>Sin subcategorías. Tocá "+ Nueva subcategoría" para agregar.</p>
+            )}
           </div>
-        ) : subcats.length > 0 ? (
-          <select value={form.subCatId} onChange={e => set("subCatId", e.target.value)}
-            style={{ width: "100%", background: T.bg, border: `1.5px solid ${T.border}`, borderRadius: 12, padding: "10px 13px", color: T.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}>
-            <option value="">— Sin subcategoría —</option>
-            {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        ) : (
-          <p style={{ fontSize: 12, color: T.subtle, margin: 0, padding: "8px 0" }}>Sin subcategorías. Tocá "+ Nueva subcategoría" para agregar.</p>
-        )}
-      </div>
-      <Inp label="Descripción (opcional)" placeholder="ej: almuerzo, uber..." value={form.desc} onChange={e => set("desc", e.target.value)} />
+          <Inp label="Descripción (opcional)" placeholder="ej: almuerzo, uber..." value={form.desc} onChange={e => set("desc", e.target.value)} />
+        </>
+      )}
+
+      {/* ── MULTI-ITEM MODE (credit card) ── */}
+      {multiMode && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <label style={{ fontSize: 11, color: T.muted, fontWeight: 600, letterSpacing: .8, textTransform: "uppercase" }}>Ítems del resumen</label>
+            <span style={{ fontSize: 12, color: T.accent, fontWeight: 700 }}>Total: {fmt(itemsTotal)}</span>
+          </div>
+
+          {/* Column headers */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 28px", gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700 }}>Descripción</span>
+            <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700 }}>Subcategoría</span>
+            <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "right" }}>Monto</span>
+            <span/>
+          </div>
+
+          <div style={{ maxHeight: 320, overflowY: "auto" }}>
+            {items.map((item, idx) => (
+              <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 120px 90px 28px", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                <input
+                  placeholder="ej: Spotify, Peugeot..."
+                  value={item.desc}
+                  onChange={e => setItem(item.id, "desc", e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && idx === items.length - 1 && addItem()}
+                  style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 10px", color: T.text, fontSize: 12, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }}
+                />
+                <select value={item.subCatId} onChange={e => setItem(item.id, "subCatId", e.target.value)}
+                  style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 6px", color: T.text, fontSize: 11, outline: "none", fontFamily: "inherit", width: "100%" }}>
+                  <option value="">—</option>
+                  {subcats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <input
+                  placeholder="0,00"
+                  value={item.amount}
+                  onChange={e => setItem(item.id, "amount", e.target.value.replace(/[^0-9.]/g, ""))}
+                  inputMode="decimal"
+                  style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "7px 8px", color: T.accent, fontSize: 12, fontWeight: 700, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box", textAlign: "right" }}
+                />
+                <button onClick={() => delItem(item.id)} disabled={items.length === 1}
+                  style={{ background: "none", border: "none", color: items.length > 1 ? T.warn : T.border, cursor: items.length > 1 ? "pointer" : "default", fontSize: 16, padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={addItem}
+            style={{ width: "100%", padding: "8px", borderRadius: 10, border: `1.5px dashed ${T.border}`, background: "transparent", color: T.accent, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 13, marginTop: 6 }}>
+            + Agregar ítem
+          </button>
+
+          {/* Total bar */}
+          {itemsTotal > 0 && (
+            <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px 14px", marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: T.muted }}>{items.filter(i => Number(i.amount) > 0).length} ítems</span>
+              <span style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{fmt(itemsTotal)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Date — shared */}
       <Inp label="Fecha" type="date" value={form.date} onChange={e => set("date", e.target.value)} />
+
       <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
         <Btn variant="ghost" onClick={onClose} style={{ flex: 1 }}>Cancelar</Btn>
-        <Btn onClick={save} style={{ flex: 1 }}>Guardar</Btn>
+        <Btn onClick={save} style={{ flex: 1 }}>
+          {multiMode ? `Guardar ${items.filter(i => Number(i.amount) > 0).length} gastos` : "Guardar"}
+        </Btn>
       </div>
     </Modal>
   );
