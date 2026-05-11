@@ -345,6 +345,18 @@ function IconReport({ active }) {
     </svg>
   );
 }
+function IconProjection({ active }) {
+  const bg = active ? "#2980b9" : "#dde8dd";
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+      <rect width="30" height="30" rx="8" fill={bg}/>
+      <polyline points="5,22 10,15 15,17 20,9 25,6" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <polyline points="21,6 25,6 25,10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="5" y1="24" x2="25" y2="24" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity=".5"/>
+    </svg>
+  );
+}
+
 function IconExport() {
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
@@ -1574,6 +1586,301 @@ Respondé en español con este formato JSON exacto (sin markdown, solo JSON):
   );
 }
 
+// ── Projection View ───────────────────────────────────────────────────
+function ProjectionView({ expenses, categories, budgets, currency }) {
+  const [tab, setTab] = useState("next"); // "next" | "forecast" | "sim"
+  const [simChanges, setSimChanges] = useState({}); // { catId: pctChange }
+  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+
+  // ── Calcular promedio mensual por categoría (últimos 3 meses) ──
+  const monthlyAvg = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 1; i <= 3; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(d.toISOString().slice(0, 7));
+    }
+    const acc = {};
+    categories.forEach(c => { acc[c.id] = { total: 0, count: 0 }; });
+    expenses.forEach(e => {
+      const m = e.date.slice(0, 7);
+      if (months.includes(m) && acc[e.catId] !== undefined) {
+        acc[e.catId].total += e.amount;
+        acc[e.catId].count += 1;
+      }
+    });
+    return Object.fromEntries(
+      Object.entries(acc).map(([id, v]) => [id, { avg: v.total / 3, count: v.count }])
+    );
+  }, [expenses, categories]);
+
+  const totalAvg = Object.values(monthlyAvg).reduce((s, v) => s + v.avg, 0);
+
+  // ── Tendencia: comparar últimos 2 meses ──
+  const trend = useMemo(() => {
+    const now = new Date();
+    const m1 = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
+    const m2 = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 7);
+    const t1 = {}, t2 = {};
+    expenses.forEach(e => {
+      if (e.date.startsWith(m1)) t1[e.catId] = (t1[e.catId] || 0) + e.amount;
+      if (e.date.startsWith(m2)) t2[e.catId] = (t2[e.catId] || 0) + e.amount;
+    });
+    return Object.fromEntries(
+      categories.map(c => {
+        const v1 = t1[c.id] || 0, v2 = t2[c.id] || 0;
+        const pct = v2 > 0 ? ((v1 - v2) / v2) * 100 : 0;
+        return [c.id, { pct: +pct.toFixed(1), up: pct > 5, down: pct < -5 }];
+      })
+    );
+  }, [expenses, categories]);
+
+  // ── Forecast N meses ──
+  const forecast = useMemo(() => {
+    const months = [1, 3, 6, 12];
+    return months.map(n => {
+      const base = totalAvg * n;
+      const trendFactor = 1 + (Object.values(trend).reduce((s, t) => s + t.pct, 0) / categories.length / 100) * 0.5;
+      return { months: n, base: Math.round(base), projected: Math.round(base * Math.max(0.5, Math.min(2, trendFactor))) };
+    });
+  }, [totalAvg, trend, categories]);
+
+  // ── Simulador ──
+  const simTotal = useMemo(() => {
+    return categories.reduce((s, c) => {
+      const base = monthlyAvg[c.id]?.avg || 0;
+      const change = simChanges[c.id] || 0;
+      return s + base * (1 + change / 100);
+    }, 0);
+  }, [categories, monthlyAvg, simChanges]);
+
+  const budgetTotal = Number(budgets.__total) || 0;
+  const simSaving = totalAvg - simTotal;
+
+  const trendColor = (pct) => pct > 5 ? T.warn : pct < -5 ? T.accentMd : T.muted;
+  const trendIcon  = (pct) => pct > 5 ? "↑" : pct < -5 ? "↓" : "→";
+
+  return (
+    <div style={{ maxWidth: 700, margin: "0 auto" }}>
+      {/* Sub-tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        {[["next","📅 Próximo mes"],["forecast","📈 Proyección"],["sim","🎛️ Simulador"]].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)}
+            style={{ flex: 1, padding: "9px 6px", borderRadius: 12, border: `1.5px solid ${tab===k ? T.accent : T.border}`, background: tab===k ? T.accentLt : "transparent", color: tab===k ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 12 }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* ── PRÓXIMO MES ── */}
+      {tab === "next" && (
+        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
+          <Card style={{ marginBottom: 12 }}>
+            <SectionLabel>Proyección próximo mes</SectionLabel>
+            <p style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>Basado en el promedio de los últimos 3 meses + tendencia actual.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <div style={{ background: T.bg, borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: .6 }}>Promedio 3 meses</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>{fmt(Math.round(totalAvg))}</div>
+              </div>
+              <div style={{ background: T.accentLt, borderRadius: 12, padding: "12px 14px", textAlign: "center", border: `1px solid ${T.border}` }}>
+                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: .6 }}>Proyectado</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>{fmt(Math.round(forecast[0]?.projected || totalAvg))}</div>
+              </div>
+            </div>
+            {budgetTotal > 0 && (
+              <div style={{ background: forecast[0]?.projected > budgetTotal ? T.warnLt : T.accentLt, borderRadius: 10, padding: "8px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", border: `1px solid ${forecast[0]?.projected > budgetTotal ? "#f5c6c6" : T.border}` }}>
+                <span style={{ fontSize: 12, color: T.muted }}>vs presupuesto ({fmt(budgetTotal)})</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: forecast[0]?.projected > budgetTotal ? T.warn : T.accentMd }}>
+                  {forecast[0]?.projected > budgetTotal ? `⚠️ excede en ${fmt(forecast[0].projected - budgetTotal)}` : `✅ dentro del límite`}
+                </span>
+              </div>
+            )}
+          </Card>
+
+          {/* Por categoría */}
+          <Card>
+            <SectionLabel>Por categoría</SectionLabel>
+            {categories.filter(c => (monthlyAvg[c.id]?.avg || 0) > 0).sort((a, b) => (monthlyAvg[b.id]?.avg||0) - (monthlyAvg[a.id]?.avg||0)).map(c => {
+              const avg = monthlyAvg[c.id]?.avg || 0;
+              const t = trend[c.id];
+              const projected = Math.round(avg * (1 + (t?.pct || 0) / 100 * 0.5));
+              const limit = Number(budgets[c.id]) || 0;
+              const pctOfTotal = totalAvg > 0 ? (avg / totalAvg * 100).toFixed(0) : 0;
+              return (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <CatIcon icon={c.icon} size={30}/>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span style={{ fontSize: 10, color: trendColor(t?.pct), fontWeight: 700 }}>{trendIcon(t?.pct)} {t?.pct > 0 ? "+" : ""}{t?.pct}%</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: limit > 0 && projected > limit ? T.warn : T.accent }}>{fmt(projected)}</span>
+                      </div>
+                    </div>
+                    <div style={{ height: 4, background: T.bg, borderRadius: 2, overflow: "hidden", position: "relative" }}>
+                      <div style={{ height: "100%", width: `${pctOfTotal}%`, background: c.color, borderRadius: 2 }}/>
+                      {limit > 0 && <div style={{ position: "absolute", top: 0, left: `${Math.min(limit/totalAvg*100,100)}%`, width: 2, height: "100%", background: T.warn, borderRadius: 1 }}/>}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+                      <span style={{ fontSize: 9, color: T.subtle }}>Prom: {fmt(Math.round(avg))} · {pctOfTotal}% del total</span>
+                      {limit > 0 && <span style={{ fontSize: 9, color: T.subtle }}>Límite: {fmt(limit)}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+
+      {/* ── PROYECCIÓN MULTI-MES ── */}
+      {tab === "forecast" && (
+        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
+          <Card style={{ marginBottom: 12 }}>
+            <SectionLabel>Proyección acumulada</SectionLabel>
+            <p style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Estimación de gastos totales acumulados según tu ritmo actual.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
+              {forecast.map(f => (
+                <div key={f.months} style={{ background: T.bg, borderRadius: 14, padding: "14px", border: `1px solid ${T.border}` }}>
+                  <div style={{ fontSize: 11, color: T.muted, marginBottom: 6, fontWeight: 600 }}>
+                    {f.months === 1 ? "1 mes" : `${f.months} meses`}
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 4 }}>{fmt(f.projected)}</div>
+                  {f.projected !== f.base && (
+                    <div style={{ fontSize: 10, color: f.projected > f.base ? T.warn : T.accentMd }}>
+                      {f.projected > f.base ? "↑" : "↓"} vs base: {fmt(f.base)}
+                    </div>
+                  )}
+                  {budgetTotal > 0 && (
+                    <div style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>
+                      Presupuesto: {fmt(budgetTotal * f.months)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Gráfico de barras por mes */}
+          <Card>
+            <SectionLabel>Gasto mensual histórico</SectionLabel>
+            {(() => {
+              const now = new Date();
+              const meses = [];
+              for (let i = 5; i >= 0; i--) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const key = d.toISOString().slice(0, 7);
+                const label = d.toLocaleString("es-AR", { month: "short" });
+                const total = expenses.filter(e => e.date.startsWith(key)).reduce((s, e) => s + e.amount, 0);
+                meses.push({ key, label, total });
+              }
+              // Add projection
+              const nextD = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+              meses.push({ key: "proj", label: nextD.toLocaleString("es-AR", { month: "short" }) + " (proj)", total: forecast[0]?.projected || 0, isProj: true });
+              const maxVal = Math.max(...meses.map(m => m.total), 1);
+              return (
+                <div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "flex-end", height: 120, marginBottom: 8 }}>
+                    {meses.map(m => (
+                      <div key={m.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        <div style={{ fontSize: 8, color: T.subtle, textAlign: "center", whiteSpace: "nowrap", overflow: "hidden", maxWidth: "100%" }}>
+                          {m.total > 0 ? fmt(Math.round(m.total/1000)) + "K" : ""}
+                        </div>
+                        <div style={{ width: "100%", borderRadius: "4px 4px 0 0", background: m.isProj ? `${T.accent}55` : T.accent, border: m.isProj ? `2px dashed ${T.accent}` : "none", height: `${(m.total / maxVal) * 90}px`, minHeight: m.total > 0 ? 4 : 0, transition: "height .4s" }}/>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {meses.map(m => (
+                      <div key={m.key} style={{ flex: 1, fontSize: 8, color: m.isProj ? T.accent : T.subtle, textAlign: "center", fontWeight: m.isProj ? 700 : 400 }}>{m.label}</div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
+        </div>
+      )}
+
+      {/* ── SIMULADOR ── */}
+      {tab === "sim" && (
+        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
+          <Card style={{ marginBottom: 12 }}>
+            <SectionLabel>Simulador de reducción</SectionLabel>
+            <p style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>Mové el deslizador para ver cuánto ahorrás reduciendo cada categoría.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+              <div style={{ background: T.bg, borderRadius: 12, padding: "10px", textAlign: "center" }}>
+                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>Actual promedio</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.muted }}>{fmt(Math.round(totalAvg))}</div>
+              </div>
+              <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${T.accent}` }}>
+                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>Simulado</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{fmt(Math.round(simTotal))}</div>
+              </div>
+              <div style={{ background: simSaving > 0 ? "#f0faf0" : T.warnLt, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${simSaving > 0 ? T.accentMd : "#f5c6c6"}` }}>
+                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>{simSaving > 0 ? "Ahorro" : "Aumento"}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: simSaving > 0 ? T.accentMd : T.warn }}>{simSaving > 0 ? "-" : "+"}{fmt(Math.abs(Math.round(simSaving)))}</div>
+              </div>
+            </div>
+            {budgetTotal > 0 && (
+              <div style={{ background: simTotal <= budgetTotal ? T.accentLt : T.warnLt, borderRadius: 10, padding: "8px 14px", marginBottom: 14, border: `1px solid ${simTotal <= budgetTotal ? T.border : "#f5c6c6"}` }}>
+                <span style={{ fontSize: 12, color: T.muted }}>
+                  {simTotal <= budgetTotal ? `✅ Dentro del presupuesto — sobraría ${fmt(Math.round(budgetTotal - simTotal))}` : `⚠️ Excede el presupuesto en ${fmt(Math.round(simTotal - budgetTotal))}`}
+                </span>
+              </div>
+            )}
+            <button onClick={() => setSimChanges({})} style={{ width: "100%", padding: "7px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>
+              ↺ Resetear simulación
+            </button>
+          </Card>
+
+          <Card>
+            {categories.filter(c => (monthlyAvg[c.id]?.avg || 0) > 0).sort((a, b) => (monthlyAvg[b.id]?.avg||0) - (monthlyAvg[a.id]?.avg||0)).map(c => {
+              const avg = monthlyAvg[c.id]?.avg || 0;
+              const change = simChanges[c.id] || 0;
+              const simAmt = Math.round(avg * (1 + change / 100));
+              const diff = simAmt - Math.round(avg);
+              return (
+                <div key={c.id} style={{ padding: "12px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <CatIcon icon={c.icon} size={28}/>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <span style={{ fontSize: 11, color: T.subtle, textDecoration: "line-through" }}>{fmt(Math.round(avg))}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: change < 0 ? T.accentMd : change > 0 ? T.warn : T.accent }}>{fmt(simAmt)}</span>
+                        </div>
+                      </div>
+                      {diff !== 0 && (
+                        <span style={{ fontSize: 10, color: diff < 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
+                          {diff < 0 ? `💰 Ahorrás ${fmt(Math.abs(diff))}/mes` : `⚠️ Gastás ${fmt(diff)} más/mes`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 10, color: T.warn, minWidth: 28, textAlign: "center", fontWeight: 700 }}>-50%</span>
+                    <input type="range" min="-50" max="50" step="5" value={change}
+                      onChange={e => setSimChanges(p => ({ ...p, [c.id]: Number(e.target.value) }))}
+                      style={{ flex: 1, accentColor: change < 0 ? T.accentMd : change > 0 ? T.warn : T.accent, cursor: "pointer" }}
+                    />
+                    <span style={{ fontSize: 10, color: T.warn, minWidth: 28, textAlign: "center", fontWeight: 700 }}>+50%</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: change < 0 ? T.accentMd : change > 0 ? T.warn : T.muted, minWidth: 36, textAlign: "right" }}>
+                      {change > 0 ? "+" : ""}{change}%
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ShoppingList({ categories, onAddExpense }) {
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", qty: 1, price: "" });
@@ -1867,8 +2174,8 @@ export default function App() {
           </div>
         )}
 
-        {view === "shopping" && <ShoppingList categories={categories} onAddExpense={addExpense} />}
-        {view === "reports"  && <ReportView expenses={expenses} categories={categories} budgets={budgets} currency={currency} />}
+        {view === "shopping"   && <ShoppingList categories={categories} onAddExpense={addExpense} />}
+        {view === "projection" && <ProjectionView expenses={expenses} categories={categories} budgets={budgets} currency={currency} />}
 
         {view === "dashboard" && (
           <>
@@ -2073,6 +2380,15 @@ export default function App() {
           <IconShopping active={view === "shopping"} />
           <span style={{ fontSize: 10, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
           {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
+        </button>
+
+        {/* Proyección */}
+        <button onClick={() => setView("projection")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+          onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+          onMouseLeave={e => e.currentTarget.style.transform = "none"}>
+          <IconProjection active={view === "projection"} />
+          <span style={{ fontSize: 10, fontWeight: 600, color: view === "projection" ? T.accent : T.muted, fontFamily: "inherit" }}>Proyección</span>
+          {view === "projection" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
         {/* Exportar */}
