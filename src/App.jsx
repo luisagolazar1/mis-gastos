@@ -1688,16 +1688,19 @@ function ProjectionView({ expenses, categories, budgets }) {
   const simSaving=totalAvg-simTotal;
 
   const subSpending = useMemo(()=>{
-    const now=new Date();
-    const last2=[1,2].map(i=>new Date(now.getFullYear(),now.getMonth()-i,1).toISOString().slice(0,7));
+    // Use the selected month for each category
     const acc={};
-    expenses.forEach(e=>{
-      if(!e.subCatId||!last2.includes(e.date.slice(0,7)))return;
-      const key=`${e.catId}:${e.subCatId}`;
-      acc[key]=(acc[key]||0)+e.amount;
+    categories.forEach(c => {
+      const sel = getSelectedMonth(c.id);
+      expenses.forEach(e=>{
+        if(!e.subCatId || e.catId !== c.id || !e.date.startsWith(sel)) return;
+        const key=`${e.catId}:${e.subCatId}`;
+        acc[key]=(acc[key]||0)+e.amount;
+      });
     });
     return acc;
-  },[expenses]);
+  // eslint-disable-next-line
+  },[expenses, categories, catMonths, defaultMonth]);
 
   const SubFilter = ({ catId }) => {
     const cat=catMap[catId];
@@ -1712,7 +1715,7 @@ function ProjectionView({ expenses, categories, budgets }) {
           return(
             <button key={s.id} onClick={()=>toggleSub(catId,s.id)}
               style={{padding:"3px 8px",borderRadius:8,border:`1px solid ${excl?T.border:T.accent}`,background:excl?T.bg:T.accentLt,color:excl?T.subtle:T.accent,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600,textDecoration:excl?"line-through":"none",transition:"all .15s"}}>
-              {excl?"✕":"✓"} {s.name} ({fmt(Math.round(amt/2))}/m)
+              {excl?"✕":"✓"} {s.name} ({fmt(amt)})
             </button>
           );
         })}
