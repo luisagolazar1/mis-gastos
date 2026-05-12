@@ -1627,12 +1627,11 @@ function ProjectionView({ expenses, categories, budgets }) {
 
   const monthlyAvg = useMemo(() => {
     return Object.fromEntries(categories.map(c => {
-      const sel = getSelectedMonth(c.id);
+      const sel = catMonths[c.id] !== undefined ? catMonths[c.id] : defaultMonth;
       const avg = getMonthSpend(c.id, sel);
       return [c.id, { avg, month: sel }];
     }));
-  // eslint-disable-next-line
-  }, [expenses, categories, excludedSubs, catMonths, getMonthSpend, defaultMonth]);
+  }, [expenses, categories, excludedSubs, catMonths, defaultMonth, getMonthSpend]);
 
   const totalAvg = Object.values(monthlyAvg).reduce((s,v)=>s+v.avg,0);
 
@@ -1688,10 +1687,10 @@ function ProjectionView({ expenses, categories, budgets }) {
   const simSaving=totalAvg-simTotal;
 
   const subSpending = useMemo(()=>{
-    // Use the selected month for each category
     const acc={};
     categories.forEach(c => {
-      const sel = getSelectedMonth(c.id);
+      // Get selected month directly (not via function) so useMemo tracks it
+      const sel = catMonths[c.id] !== undefined ? catMonths[c.id] : defaultMonth;
       expenses.forEach(e=>{
         if(!e.subCatId || e.catId !== c.id || !e.date.startsWith(sel)) return;
         const key=`${e.catId}:${e.subCatId}`;
@@ -1699,7 +1698,6 @@ function ProjectionView({ expenses, categories, budgets }) {
       });
     });
     return acc;
-  // eslint-disable-next-line
   },[expenses, categories, catMonths, defaultMonth]);
 
   const SubFilter = ({ catId }) => {
@@ -1723,12 +1721,15 @@ function ProjectionView({ expenses, categories, budgets }) {
     );
   };
 
-  const MonthSelector = ({ catId }) => (
-    <select value={getSelectedMonth(catId)} onChange={e => setCatMonths(p => ({...p, [catId]: e.target.value}))}
-      style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
-      {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
-    </select>
-  );
+  const MonthSelector = ({ catId }) => {
+    const selVal = catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
+    return (
+      <select value={selVal} onChange={e => setCatMonths(p => ({...p, [catId]: e.target.value}))}
+        style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
+        {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
+      </select>
+    );
+  };
 
   const MiniBarChart = ({ catId }) => {
     const hist=catHistory[catId];
