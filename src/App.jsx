@@ -1587,124 +1587,111 @@ Respondé en español con este formato JSON exacto (sin markdown, solo JSON):
 }
 
 // ── Projection View ───────────────────────────────────────────────────
-function ProjectionView({ expenses, categories, budgets, currency }) {
+function ProjectionView({ expenses, categories, budgets }) {
   const [tab, setTab] = useState("next");
   const [simChanges, setSimChanges] = useState({});
-  const [excludedSubs, setExcludedSubs] = useState({}); // { catId: Set of subCatIds }
+  const [excludedSubs, setExcludedSubs] = useState({});
+  const [catMonths, setCatMonths] = useState({});
   const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+
+  const availableMonths = useMemo(() => {
+    const set = new Set(expenses.map(e => e.date.slice(0,7)));
+    return [...set].sort().reverse();
+  }, [expenses]);
 
   const toggleSub = (catId, subId) => {
     setExcludedSubs(prev => {
       const current = new Set(prev[catId] || []);
-      if (current.has(subId)) current.delete(subId);
-      else current.add(subId);
+      current.has(subId) ? current.delete(subId) : current.add(subId);
       return { ...prev, [catId]: current };
     });
   };
-  const isExcluded = (catId, subId) => !!(excludedSubs[catId]?.has(subId));
+  const isExcluded = useCallback((catId, subId) => !!(excludedSubs[catId]?.has(subId)), [excludedSubs]);
 
-  // ── Promedio últimos 2 meses por categoría, excluyendo subcategorías seleccionadas ──
+  const getMonthSpend = useCallback((catId, month) => {
+    return expenses.filter(e => {
+      if (!e.date.startsWith(month) || e.catId !== catId) return false;
+      if (e.subCatId && isExcluded(catId, e.subCatId)) return false;
+      return true;
+    }).reduce((s, e) => s + e.amount, 0);
+  }, [expenses, isExcluded]);
+
   const monthlyAvg = useMemo(() => {
     const now = new Date();
-    const months = [];
-    for (let i = 1; i <= 2; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.toISOString().slice(0, 7));
-    }
-    const acc = {};
-    categories.forEach(c => { acc[c.id] = { total: 0, count: 0 }; });
-    expenses.forEach(e => {
-      const m = e.date.slice(0, 7);
-      if (!months.includes(m) || acc[e.catId] === undefined) return;
-      if (e.subCatId && isExcluded(e.catId, e.subCatId)) return; // excluir sub
-      acc[e.catId].total += e.amount;
-      acc[e.catId].count += 1;
-    });
-    return Object.fromEntries(
-      Object.entries(acc).map(([id, v]) => [id, { avg: v.total / 2, count: v.count }])
-    );
-  }, [expenses, categories, excludedSubs]);
+    const last2 = [1,2].map(i => new Date(now.getFullYear(), now.getMonth()-i,1).toISOString().slice(0,7));
+    return Object.fromEntries(categories.map(c => {
+      const sel = catMonths[c.id];
+      const avg = sel ? getMonthSpend(c.id, sel) : last2.reduce((s,m)=>s+getMonthSpend(c.id,m),0)/2;
+      return [c.id, { avg, month: sel||null }];
+    }));
+  }, [expenses, categories, excludedSubs, catMonths, getMonthSpend]);
 
-  const totalAvg = Object.values(monthlyAvg).reduce((s, v) => s + v.avg, 0);
+  const totalAvg = Object.values(monthlyAvg).reduce((s,v)=>s+v.avg,0);
 
-  // ── Tendencia: comparar últimos 2 meses ──
-  const trend = useMemo(() => {
+  const catHistory = useMemo(() => {
     const now = new Date();
-    const m1 = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
-    const m2 = new Date(now.getFullYear(), now.getMonth() - 2, 1).toISOString().slice(0, 7);
-    const t1 = {}, t2 = {};
-    expenses.forEach(e => {
-      if (e.subCatId && isExcluded(e.catId, e.subCatId)) return;
-      if (e.date.startsWith(m1)) t1[e.catId] = (t1[e.catId] || 0) + e.amount;
-      if (e.date.startsWith(m2)) t2[e.catId] = (t2[e.catId] || 0) + e.amount;
-    });
-    return Object.fromEntries(
-      categories.map(c => {
-        const v1 = t1[c.id] || 0, v2 = t2[c.id] || 0;
-        const pct = v2 > 0 ? ((v1 - v2) / v2) * 100 : 0;
-        return [c.id, { pct: +pct.toFixed(1), up: pct > 5, down: pct < -5 }];
-      })
-    );
-  }, [expenses, categories, excludedSubs]);
+    return Object.fromEntries(categories.map(c => {
+      const points = [];
+      for (let i=5;i>=0;i--) {
+        const d = new Date(now.getFullYear(), now.getMonth()-i,1);
+        const m = d.toISOString().slice(0,7);
+        const total = expenses.filter(e=>e.date.startsWith(m)&&e.catId===c.id&&!(e.subCatId&&isExcluded(c.id,e.subCatId))).reduce((s,e)=>s+e.amount,0);
+        points.push({ m, label:d.toLocaleString("es-AR",{month:"short"}), total });
+      }
+      const n=points.length, ys=points.map(p=>p.total), xs=[0,1,2,3,4,5];
+      const sX=xs.reduce((a,b)=>a+b,0),sY=ys.reduce((a,b)=>a+b,0);
+      const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0),sXX=xs.reduce((s,x)=>s+x*x,0);
+      const slope=(n*sXY-sX*sY)/(n*sXX-sX*sX)||0;
+      const intercept=(sY-slope*sX)/n;
+      const trendPoints=xs.map(x=>Math.max(0,slope*x+intercept));
+      const nextProj=Math.max(0,slope*n+intercept);
+      return [c.id, { points, slope, trendPoints, nextProj }];
+    }));
+  }, [expenses, categories, excludedSubs, isExcluded]);
 
-  // ── Subcategorías con gasto en últimos 2 meses ──
-  const subSpending = useMemo(() => {
-    const now = new Date();
-    const months = [];
-    for (let i = 1; i <= 2; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.toISOString().slice(0, 7));
-    }
-    const acc = {};
-    expenses.forEach(e => {
-      if (!e.subCatId) return;
-      const m = e.date.slice(0, 7);
-      if (!months.includes(m)) return;
-      const key = `${e.catId}:${e.subCatId}`;
-      acc[key] = (acc[key] || 0) + e.amount;
+  const trend = useMemo(()=>Object.fromEntries(categories.map(c=>{
+    const hist=catHistory[c.id]?.points||[];
+    const l=hist.slice(-2);
+    const pct=l[0]?.total>0?((l[1]?.total||0)-l[0].total)/l[0].total*100:0;
+    return [c.id,{pct:+pct.toFixed(1)}];
+  })),[catHistory,categories]);
+
+  const forecast = useMemo(()=>[1,3,6,12].map(n=>({ months:n, projected:Math.round(totalAvg*n) })),[totalAvg]);
+
+  const simTotal = useMemo(()=>categories.reduce((s,c)=>{
+    const base=monthlyAvg[c.id]?.avg||0;
+    return s+base*(1+(simChanges[c.id]||0)/100);
+  },0),[categories,monthlyAvg,simChanges]);
+
+  const budgetTotal=Number(budgets.__total)||0;
+  const simSaving=totalAvg-simTotal;
+
+  const subSpending = useMemo(()=>{
+    const now=new Date();
+    const last2=[1,2].map(i=>new Date(now.getFullYear(),now.getMonth()-i,1).toISOString().slice(0,7));
+    const acc={};
+    expenses.forEach(e=>{
+      if(!e.subCatId||!last2.includes(e.date.slice(0,7)))return;
+      const key=`${e.catId}:${e.subCatId}`;
+      acc[key]=(acc[key]||0)+e.amount;
     });
     return acc;
-  }, [expenses]);
+  },[expenses]);
 
-  // ── Forecast ──
-  const forecast = useMemo(() => {
-    const months = [1, 3, 6, 12];
-    return months.map(n => {
-      const base = totalAvg * n;
-      const trendFactor = 1 + (Object.values(trend).reduce((s, t) => s + t.pct, 0) / Math.max(categories.length, 1) / 100) * 0.5;
-      return { months: n, base: Math.round(base), projected: Math.round(base * Math.max(0.5, Math.min(2, trendFactor))) };
-    });
-  }, [totalAvg, trend, categories]);
-
-  // ── Simulador ──
-  const simTotal = useMemo(() => {
-    return categories.reduce((s, c) => {
-      const base = monthlyAvg[c.id]?.avg || 0;
-      const change = simChanges[c.id] || 0;
-      return s + base * (1 + change / 100);
-    }, 0);
-  }, [categories, monthlyAvg, simChanges]);
-
-  const budgetTotal = Number(budgets.__total) || 0;
-  const simSaving = totalAvg - simTotal;
-  const trendColor = (pct) => pct > 5 ? T.warn : pct < -5 ? T.accentMd : T.muted;
-  const trendIcon  = (pct) => pct > 5 ? "↑" : pct < -5 ? "↓" : "→";
-
-  // Subcategory filter panel (shared across tabs)
   const SubFilter = ({ catId }) => {
-    const cat = catMap[catId];
-    if (!cat?.subcats?.length) return null;
-    const relevant = cat.subcats.filter(s => subSpending[`${catId}:${s.id}`] > 0);
-    if (!relevant.length) return null;
+    const cat=catMap[catId];
+    if(!cat?.subcats?.length)return null;
+    const relevant=cat.subcats.filter(s=>subSpending[`${catId}:${s.id}`]>0);
+    if(!relevant.length)return null;
     return (
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
-        {relevant.map(s => {
-          const excl = isExcluded(catId, s.id);
-          const amt  = subSpending[`${catId}:${s.id}`] || 0;
-          return (
-            <button key={s.id} onClick={() => toggleSub(catId, s.id)}
-              style={{ padding: "3px 8px", borderRadius: 8, border: `1px solid ${excl ? T.border : T.accent}`, background: excl ? T.bg : T.accentLt, color: excl ? T.subtle : T.accent, cursor: "pointer", fontFamily: "inherit", fontSize: 10, fontWeight: 600, textDecoration: excl ? "line-through" : "none", transition: "all .15s" }}>
-              {excl ? "✕" : "✓"} {s.name} ({fmt(Math.round(amt/2))}/m)
+      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:6}}>
+        {relevant.map(s=>{
+          const excl=isExcluded(catId,s.id);
+          const amt=subSpending[`${catId}:${s.id}`]||0;
+          return(
+            <button key={s.id} onClick={()=>toggleSub(catId,s.id)}
+              style={{padding:"3px 8px",borderRadius:8,border:`1px solid ${excl?T.border:T.accent}`,background:excl?T.bg:T.accentLt,color:excl?T.subtle:T.accent,cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600,textDecoration:excl?"line-through":"none",transition:"all .15s"}}>
+              {excl?"✕":"✓"} {s.name} ({fmt(Math.round(amt/2))}/m)
             </button>
           );
         })}
@@ -1712,71 +1699,113 @@ function ProjectionView({ expenses, categories, budgets, currency }) {
     );
   };
 
-  const activeCats = categories.filter(c => (monthlyAvg[c.id]?.avg || 0) > 0)
-    .sort((a, b) => (monthlyAvg[b.id]?.avg||0) - (monthlyAvg[a.id]?.avg||0));
+  const MonthSelector = ({ catId }) => (
+    <select value={catMonths[catId]||""} onChange={e=>setCatMonths(p=>({...p,[catId]:e.target.value||undefined}))}
+      style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
+      <option value="">Prom 2m</option>
+      {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
+    </select>
+  );
 
-  return (
-    <div style={{ maxWidth: 700, margin: "0 auto" }}>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        {[["next","📅 Próximo mes"],["forecast","📈 Proyección"],["sim","🎛️ Simulador"]].map(([k,l]) => (
-          <button key={k} onClick={() => setTab(k)}
-            style={{ flex: 1, padding: "9px 6px", borderRadius: 12, border: `1.5px solid ${tab===k ? T.accent : T.border}`, background: tab===k ? T.accentLt : "transparent", color: tab===k ? T.accent : T.muted, cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 12 }}>
+  const MiniBarChart = ({ catId }) => {
+    const hist=catHistory[catId];
+    if(!hist)return null;
+    const {points,trendPoints,nextProj}=hist;
+    const allVals=[...points.map(p=>p.total),nextProj].filter(v=>v>0);
+    if(!allVals.length)return null;
+    const maxVal=Math.max(...allVals,1);
+    const W=280,H=72,pL=4,pR=4,pT=10,pB=18;
+    const iW=W-pL-pR,iH=H-pT-pB;
+    const allPts=[...points,{m:"proj",label:"Proj",total:nextProj,isProj:true}];
+    const bW=iW/allPts.length-3;
+    return(
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block",marginTop:6}}>
+        {allPts.map((p,i)=>{
+          const x=pL+i*(iW/allPts.length)+1.5;
+          const bH=p.total>0?(p.total/maxVal)*iH:1;
+          const y=pT+iH-bH;
+          return(
+            <g key={p.m}>
+              <rect x={x} y={y} width={bW} height={bH} fill={p.isProj?`${T.accent}55`:T.accent} rx="2" stroke={p.isProj?T.accent:"none"} strokeDasharray={p.isProj?"3,2":"none"}/>
+              <text x={x+bW/2} y={H-2} textAnchor="middle" fontSize="7" fill={p.isProj?T.accent:T.subtle}>{p.label}</text>
+              {p.total>0&&<text x={x+bW/2} y={y-2} textAnchor="middle" fontSize="6" fill={T.subtle}>{Math.round(p.total/1000)}K</text>}
+            </g>
+          );
+        })}
+        {trendPoints.length>1&&<polyline points={trendPoints.map((v,i)=>{const x=pL+i*(iW/allPts.length)+1.5+bW/2;const y=pT+iH-(v/maxVal)*iH;return`${x},${y}`;}).join(" ")} fill="none" stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="4,2" opacity=".8"/>}
+        {trendPoints.length>0&&(()=>{
+          const li=trendPoints.length-1;
+          const x1=pL+li*(iW/allPts.length)+1.5+bW/2,y1=pT+iH-(trendPoints[li]/maxVal)*iH;
+          const x2=pL+(allPts.length-1)*(iW/allPts.length)+1.5+bW/2,y2=pT+iH-(nextProj/maxVal)*iH;
+          return<line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="3,3" opacity=".5"/>;
+        })()}
+      </svg>
+    );
+  };
+
+  const activeCats=categories.filter(c=>(monthlyAvg[c.id]?.avg||0)>0||catHistory[c.id]?.points.some(p=>p.total>0)).sort((a,b)=>(monthlyAvg[b.id]?.avg||0)-(monthlyAvg[a.id]?.avg||0));
+
+  return(
+    <div style={{maxWidth:680,margin:"0 auto"}}>
+      <div style={{display:"flex",gap:6,marginBottom:16}}>
+        {[["next","📅 Próximo mes"],["forecast","📈 Proyección"],["sim","🎛️ Simulador"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setTab(k)}
+            style={{flex:1,padding:"9px 6px",borderRadius:12,border:`1.5px solid ${tab===k?T.accent:T.border}`,background:tab===k?T.accentLt:"transparent",color:tab===k?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12}}>
             {l}
           </button>
         ))}
       </div>
 
-      {/* ── PRÓXIMO MES ── */}
-      {tab === "next" && (
-        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
-          <Card style={{ marginBottom: 12 }}>
+      {tab==="next"&&(
+        <div style={{animation:"fadeSlideUp .3s ease both"}}>
+          <Card style={{marginBottom:12,textAlign:"center"}}>
             <SectionLabel>Proyección próximo mes</SectionLabel>
-            <p style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>Basado en el promedio de los últimos <strong>2 meses</strong>. Desactivá subcategorías para excluirlas del cálculo.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-              <div style={{ background: T.bg, borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: .6 }}>Promedio 2 meses</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>{fmt(Math.round(totalAvg))}</div>
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Promedio 2 meses o mes seleccionado por categoría. Desactivá subcategorías para excluirlas.</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+              <div style={{background:T.bg,borderRadius:12,padding:"14px",textAlign:"center"}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.6}}>Base de cálculo</div>
+                <div style={{fontSize:20,fontWeight:700,color:T.muted}}>{fmt(Math.round(totalAvg))}</div>
               </div>
-              <div style={{ background: T.accentLt, borderRadius: 12, padding: "12px 14px", textAlign: "center", border: `1px solid ${T.border}` }}>
-                <div style={{ fontSize: 10, color: T.muted, marginBottom: 4, textTransform: "uppercase", letterSpacing: .6 }}>Proyectado</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: T.accent }}>{fmt(Math.round(forecast[0]?.projected || totalAvg))}</div>
+              <div style={{background:T.accentLt,borderRadius:12,padding:"14px",textAlign:"center",border:`1px solid ${T.border}`}}>
+                <div style={{fontSize:10,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.6}}>Proyectado</div>
+                <div style={{fontSize:20,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalAvg))}</div>
               </div>
             </div>
-            {budgetTotal > 0 && (
-              <div style={{ background: forecast[0]?.projected > budgetTotal ? T.warnLt : T.accentLt, borderRadius: 10, padding: "8px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", border: `1px solid ${forecast[0]?.projected > budgetTotal ? "#f5c6c6" : T.border}` }}>
-                <span style={{ fontSize: 12, color: T.muted }}>vs presupuesto ({fmt(budgetTotal)})</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: forecast[0]?.projected > budgetTotal ? T.warn : T.accentMd }}>
-                  {forecast[0]?.projected > budgetTotal ? `⚠️ excede en ${fmt(forecast[0].projected - budgetTotal)}` : `✅ dentro del límite`}
+            {budgetTotal>0&&(
+              <div style={{background:totalAvg>budgetTotal?T.warnLt:T.accentLt,borderRadius:10,padding:"8px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",border:`1px solid ${totalAvg>budgetTotal?"#f5c6c6":T.border}`}}>
+                <span style={{fontSize:12,color:T.muted}}>vs presupuesto ({fmt(budgetTotal)})</span>
+                <span style={{fontSize:13,fontWeight:700,color:totalAvg>budgetTotal?T.warn:T.accentMd}}>
+                  {totalAvg>budgetTotal?`⚠️ excede en ${fmt(Math.round(totalAvg-budgetTotal))}`:`✅ dentro del límite`}
                 </span>
               </div>
             )}
           </Card>
           <Card>
             <SectionLabel>Por categoría</SectionLabel>
-            {activeCats.map(c => {
-              const avg = monthlyAvg[c.id]?.avg || 0;
-              const t = trend[c.id];
-              const projected = Math.round(avg * (1 + (t?.pct || 0) / 100 * 0.5));
-              const limit = Number(budgets[c.id]) || 0;
-              const pctOfTotal = totalAvg > 0 ? (avg / totalAvg * 100).toFixed(0) : 0;
-              return (
-                <div key={c.id} style={{ padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <CatIcon icon={c.icon} size={30}/>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <span style={{ fontSize: 10, color: trendColor(t?.pct), fontWeight: 700 }}>{trendIcon(t?.pct)} {t?.pct > 0 ? "+" : ""}{t?.pct}%</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: limit > 0 && projected > limit ? T.warn : T.accent }}>{fmt(projected)}</span>
+            {activeCats.map(c=>{
+              const avg=monthlyAvg[c.id]?.avg||0;
+              const limit=Number(budgets[c.id])||0;
+              const pct=totalAvg>0?(avg/totalAvg*100).toFixed(0):0;
+              const tp=trend[c.id]?.pct||0;
+              return(
+                <div key={c.id} style={{padding:"14px 0",borderBottom:`1px solid ${T.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <CatIcon icon={c.icon} size={32}/>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                        <span style={{fontSize:13,fontWeight:700,color:T.text}}>{c.name}</span>
+                        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                          <span style={{fontSize:10,color:tp>5?T.warn:tp<-5?T.accentMd:T.subtle,fontWeight:700}}>{tp>5?"↑":tp<-5?"↓":"→"} {tp>0?"+":""}{tp}%</span>
+                          <span style={{fontSize:14,fontWeight:700,color:limit>0&&avg>limit?T.warn:T.accent}}>{fmt(Math.round(avg))}</span>
                         </div>
                       </div>
-                      <div style={{ height: 4, background: T.bg, borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pctOfTotal}%`, background: c.color, borderRadius: 2 }}/>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontSize:9,color:T.subtle}}>{pct}% del total{limit>0?` · Límite: ${fmt(limit)}`:""}</span>
+                        <MonthSelector catId={c.id}/>
                       </div>
-                      <div style={{ fontSize: 9, color: T.subtle, marginTop: 2 }}>Prom 2m: {fmt(Math.round(avg))} · {pctOfTotal}% del total{limit > 0 ? ` · Límite: ${fmt(limit)}` : ""}</div>
                     </div>
                   </div>
+                  <MiniBarChart catId={c.id}/>
                   <SubFilter catId={c.id}/>
                 </div>
               );
@@ -1785,109 +1814,137 @@ function ProjectionView({ expenses, categories, budgets, currency }) {
         </div>
       )}
 
-      {/* ── PROYECCIÓN MULTI-MES ── */}
-      {tab === "forecast" && (
-        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
-          <Card style={{ marginBottom: 12 }}>
+      {tab==="forecast"&&(
+        <div style={{animation:"fadeSlideUp .3s ease both"}}>
+          <Card style={{marginBottom:12}}>
             <SectionLabel>Proyección acumulada</SectionLabel>
-            <p style={{ fontSize: 12, color: T.muted, marginBottom: 16 }}>Estimación basada en los últimos 2 meses de historial.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 }}>
-              {forecast.map(f => (
-                <div key={f.months} style={{ background: T.bg, borderRadius: 14, padding: "14px", border: `1px solid ${T.border}` }}>
-                  <div style={{ fontSize: 11, color: T.muted, marginBottom: 6, fontWeight: 600 }}>
-                    {f.months === 1 ? "1 mes" : `${f.months} meses`}
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: T.accent, marginBottom: 4 }}>{fmt(f.projected)}</div>
-                  {f.projected !== f.base && (
-                    <div style={{ fontSize: 10, color: f.projected > f.base ? T.warn : T.accentMd }}>
-                      {f.projected > f.base ? "↑" : "↓"} vs base: {fmt(f.base)}
-                    </div>
-                  )}
-                  {budgetTotal > 0 && (
-                    <div style={{ fontSize: 10, color: T.muted, marginTop: 4 }}>Presupuesto: {fmt(budgetTotal * f.months)}</div>
-                  )}
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Basado en los últimos 2 meses de historial.</p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
+              {forecast.map(f=>(
+                <div key={f.months} style={{background:T.bg,borderRadius:14,padding:"14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:11,color:T.muted,marginBottom:6,fontWeight:600}}>{f.months===1?"1 mes":`${f.months} meses`}</div>
+                  <div style={{fontSize:18,fontWeight:700,color:T.accent,marginBottom:4}}>{fmt(f.projected)}</div>
+                  {budgetTotal>0&&<div style={{fontSize:10,color:T.muted}}>Presupuesto: {fmt(budgetTotal*f.months)}</div>}
                 </div>
               ))}
             </div>
+            <SectionLabel>Historial + proyección</SectionLabel>
+            {(()=>{
+              const now=new Date();
+              const meses=[];
+              for(let i=5;i>=0;i--){
+                const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+                const m=d.toISOString().slice(0,7);
+                const total=expenses.filter(e=>e.date.startsWith(m)&&!(e.subCatId&&isExcluded(e.catId,e.subCatId))).reduce((s,e)=>s+e.amount,0);
+                meses.push({m,label:d.toLocaleString("es-AR",{month:"short"}),total});
+              }
+              const nextD=new Date(now.getFullYear(),now.getMonth()+1,1);
+              meses.push({m:"proj",label:nextD.toLocaleString("es-AR",{month:"short"})+" ▸",total:Math.round(totalAvg),isProj:true});
+              const maxVal=Math.max(...meses.map(m=>m.total),1);
+              const W=320,H=90,pL=4,pR=4,pT=12,pB=20;
+              const iW=W-pL-pR,iH=H-pT-pB,bW=iW/meses.length-4;
+              const ys=meses.slice(0,6).map(m=>m.total);
+              const n=ys.length,xs=[0,1,2,3,4,5];
+              const sX=xs.reduce((a,b)=>a+b,0),sY=ys.reduce((a,b)=>a+b,0);
+              const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0),sXX=xs.reduce((s,x)=>s+x*x,0);
+              const slope=(n*sXY-sX*sY)/(n*sXX-sX*sX)||0,intercept=(sY-slope*sX)/n;
+              const tY=[...xs.map(x=>Math.max(0,slope*x+intercept)),Math.max(0,slope*6+intercept)];
+              return(
+                <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block"}}>
+                  {meses.map((m,i)=>{
+                    const x=pL+i*(iW/meses.length)+2;
+                    const bH=m.total>0?(m.total/maxVal)*iH:1;
+                    const y=pT+iH-bH;
+                    return(
+                      <g key={m.m}>
+                        <rect x={x} y={y} width={bW} height={bH} fill={m.isProj?`${T.accent}55`:T.accent} rx="2" stroke={m.isProj?T.accent:"none"} strokeDasharray={m.isProj?"3,2":"none"}/>
+                        <text x={x+bW/2} y={H-2} textAnchor="middle" fontSize="7" fill={m.isProj?T.accent:T.subtle}>{m.label}</text>
+                        {m.total>0&&<text x={x+bW/2} y={y-2} textAnchor="middle" fontSize="6" fill={T.subtle}>{Math.round(m.total/1000)}K</text>}
+                      </g>
+                    );
+                  })}
+                  <polyline points={tY.map((y,i)=>{const x=pL+i*(iW/meses.length)+2+bW/2;return`${x},${pT+iH-(y/maxVal)*iH}`;}).join(" ")} fill="none" stroke="#e74c3c" strokeWidth="2" strokeDasharray="5,3" opacity=".85"/>
+                </svg>
+              );
+            })()}
           </Card>
           <Card>
-            <SectionLabel>Excluir subcategorías del cálculo</SectionLabel>
-            <p style={{ fontSize: 12, color: T.muted, marginBottom: 12 }}>Quitá gastos extraordinarios que no se van a repetir.</p>
-            {activeCats.map(c => (
-              <div key={c.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 10 }}>
+            <SectionLabel>Excluir subcategorías</SectionLabel>
+            <p style={{fontSize:12,color:T.muted,marginBottom:12,textAlign:"center"}}>Quitá gastos extraordinarios que no se van a repetir.</p>
+            {activeCats.map(c=>(
+              <div key={c.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:10}}>
                 <CatIcon icon={c.icon} size={24}/>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>{c.name}</span>
+                <div style={{flex:1}}>
+                  <span style={{fontSize:12,fontWeight:600,color:T.text}}>{c.name}</span>
                   <SubFilter catId={c.id}/>
                 </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: T.accent }}>{fmt(Math.round(monthlyAvg[c.id]?.avg||0))}/m</span>
+                <span style={{fontSize:12,fontWeight:700,color:T.accent,whiteSpace:"nowrap"}}>{fmt(Math.round(monthlyAvg[c.id]?.avg||0))}/m</span>
               </div>
             ))}
           </Card>
         </div>
       )}
 
-      {/* ── SIMULADOR ── */}
-      {tab === "sim" && (
-        <div style={{ animation: "fadeSlideUp .3s ease both" }}>
-          <Card style={{ marginBottom: 12 }}>
+      {tab==="sim"&&(
+        <div style={{animation:"fadeSlideUp .3s ease both"}}>
+          <Card style={{marginBottom:12}}>
             <SectionLabel>Simulador de reducción</SectionLabel>
-            <p style={{ fontSize: 12, color: T.muted, marginBottom: 14 }}>Usá los deslizadores y excluí subcategorías para simular distintos escenarios.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
-              <div style={{ background: T.bg, borderRadius: 12, padding: "10px", textAlign: "center" }}>
-                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>Promedio actual</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.muted }}>{fmt(Math.round(totalAvg))}</div>
-              </div>
-              <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${T.accent}` }}>
-                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>Simulado</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: T.accent }}>{fmt(Math.round(simTotal))}</div>
-              </div>
-              <div style={{ background: simSaving > 0 ? "#f0faf0" : T.warnLt, borderRadius: 12, padding: "10px", textAlign: "center", border: `1px solid ${simSaving > 0 ? T.accentMd : "#f5c6c6"}` }}>
-                <div style={{ fontSize: 9, color: T.muted, marginBottom: 3, textTransform: "uppercase" }}>{simSaving > 0 ? "Ahorro" : "Aumento"}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: simSaving > 0 ? T.accentMd : T.warn }}>{simSaving > 0 ? "-" : "+"}{fmt(Math.abs(Math.round(simSaving)))}</div>
-              </div>
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Deslizá y excluí subcategorías para simular escenarios.</p>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+              {[
+                {label:"Promedio actual",val:fmt(Math.round(totalAvg)),color:T.muted,bg:T.bg},
+                {label:"Simulado",val:fmt(Math.round(simTotal)),color:T.accent,bg:T.accentLt},
+                {label:simSaving>0?"Ahorro":"Aumento",val:(simSaving>0?"-":"+")+fmt(Math.abs(Math.round(simSaving))),color:simSaving>0?T.accentMd:T.warn,bg:simSaving>0?"#f0faf0":T.warnLt},
+              ].map(k=>(
+                <div key={k.label} style={{background:k.bg,borderRadius:12,padding:"10px",textAlign:"center",border:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:9,color:T.muted,marginBottom:3,textTransform:"uppercase"}}>{k.label}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:k.color}}>{k.val}</div>
+                </div>
+              ))}
             </div>
-            {budgetTotal > 0 && (
-              <div style={{ background: simTotal <= budgetTotal ? T.accentLt : T.warnLt, borderRadius: 10, padding: "8px 14px", marginBottom: 14, border: `1px solid ${simTotal <= budgetTotal ? T.border : "#f5c6c6"}` }}>
-                <span style={{ fontSize: 12, color: T.muted }}>
-                  {simTotal <= budgetTotal ? `✅ Dentro del presupuesto — sobraría ${fmt(Math.round(budgetTotal - simTotal))}` : `⚠️ Excede el presupuesto en ${fmt(Math.round(simTotal - budgetTotal))}`}
+            {budgetTotal>0&&(
+              <div style={{background:simTotal<=budgetTotal?T.accentLt:T.warnLt,borderRadius:10,padding:"8px 14px",marginBottom:12,border:`1px solid ${simTotal<=budgetTotal?T.border:"#f5c6c6"}`,textAlign:"center"}}>
+                <span style={{fontSize:12,color:T.muted}}>
+                  {simTotal<=budgetTotal?`✅ Sobraría ${fmt(Math.round(budgetTotal-simTotal))}`:`⚠️ Excede en ${fmt(Math.round(simTotal-budgetTotal))}`}
                 </span>
               </div>
             )}
-            <button onClick={() => { setSimChanges({}); setExcludedSubs({}); }}
-              style={{ width: "100%", padding: "7px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.muted, cursor: "pointer", fontFamily: "inherit", fontSize: 12 }}>
+            <button onClick={()=>{setSimChanges({});setExcludedSubs({});setCatMonths({});}}
+              style={{width:"100%",padding:"7px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>
               ↺ Resetear todo
             </button>
           </Card>
           <Card>
-            {activeCats.map(c => {
-              const avg = monthlyAvg[c.id]?.avg || 0;
-              const change = simChanges[c.id] || 0;
-              const simAmt = Math.round(avg * (1 + change / 100));
-              const diff = simAmt - Math.round(avg);
-              return (
-                <div key={c.id} style={{ padding: "12px 0", borderBottom: `1px solid ${T.border}` }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+            {activeCats.map(c=>{
+              const avg=monthlyAvg[c.id]?.avg||0;
+              const change=simChanges[c.id]||0;
+              const simAmt=Math.round(avg*(1+change/100));
+              const diff=simAmt-Math.round(avg);
+              return(
+                <div key={c.id} style={{padding:"12px 0",borderBottom:`1px solid ${T.border}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                     <CatIcon icon={c.icon} size={28}/>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{c.name}</span>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <span style={{ fontSize: 11, color: T.subtle, textDecoration: "line-through" }}>{fmt(Math.round(avg))}</span>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: change < 0 ? T.accentMd : change > 0 ? T.warn : T.accent }}>{fmt(simAmt)}</span>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:2,alignItems:"center"}}>
+                        <span style={{fontSize:13,fontWeight:600,color:T.text}}>{c.name}</span>
+                        <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                          <MonthSelector catId={c.id}/>
+                          <span style={{fontSize:11,color:T.subtle,textDecoration:"line-through"}}>{fmt(Math.round(avg))}</span>
+                          <span style={{fontSize:13,fontWeight:700,color:change<0?T.accentMd:change>0?T.warn:T.accent}}>{fmt(simAmt)}</span>
                         </div>
                       </div>
-                      {diff !== 0 && <span style={{ fontSize: 10, color: diff < 0 ? T.accentMd : T.warn, fontWeight: 600 }}>{diff < 0 ? `💰 Ahorrás ${fmt(Math.abs(diff))}/mes` : `⚠️ Gastás ${fmt(diff)} más/mes`}</span>}
+                      {diff!==0&&<span style={{fontSize:10,color:diff<0?T.accentMd:T.warn,fontWeight:600}}>{diff<0?`💰 Ahorrás ${fmt(Math.abs(diff))}/mes`:`⚠️ Gastás ${fmt(diff)} más/mes`}</span>}
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <span style={{ fontSize: 10, color: T.warn, minWidth: 28, textAlign: "center", fontWeight: 700 }}>-50%</span>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                    <span style={{fontSize:9,color:T.warn,minWidth:26,textAlign:"center"}}>-50%</span>
                     <input type="range" min="-50" max="50" step="5" value={change}
-                      onChange={e => setSimChanges(p => ({ ...p, [c.id]: Number(e.target.value) }))}
-                      style={{ flex: 1, accentColor: change < 0 ? T.accentMd : change > 0 ? T.warn : T.accent, cursor: "pointer" }}/>
-                    <span style={{ fontSize: 10, color: T.warn, minWidth: 28, textAlign: "center", fontWeight: 700 }}>+50%</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: change < 0 ? T.accentMd : change > 0 ? T.warn : T.muted, minWidth: 36, textAlign: "right" }}>{change > 0 ? "+" : ""}{change}%</span>
+                      onChange={e=>setSimChanges(p=>({...p,[c.id]:Number(e.target.value)}))}
+                      style={{flex:1,accentColor:change<0?T.accentMd:change>0?T.warn:T.accent,cursor:"pointer"}}/>
+                    <span style={{fontSize:9,color:T.warn,minWidth:26,textAlign:"center"}}>+50%</span>
+                    <span style={{fontSize:11,fontWeight:700,color:change<0?T.accentMd:change>0?T.warn:T.muted,minWidth:34,textAlign:"right"}}>{change>0?"+":""}{change}%</span>
                   </div>
+                  <MiniBarChart catId={c.id}/>
                   <SubFilter catId={c.id}/>
                 </div>
               );
@@ -1898,6 +1955,7 @@ function ProjectionView({ expenses, categories, budgets, currency }) {
     </div>
   );
 }
+
 
 function ShoppingList({ categories, onAddExpense }) {
   const [items, setItems] = useState([]);
