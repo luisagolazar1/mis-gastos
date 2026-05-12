@@ -1599,6 +1599,15 @@ function ProjectionView({ expenses, categories, budgets }) {
     return [...set].sort().reverse();
   }, [expenses]);
 
+  // Default: last month with data
+  const defaultMonth = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+  }, []);
+
+  // Get selected month for a category (default = last month)
+  const getSelectedMonth = (catId) => catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
+
   const toggleSub = (catId, subId) => {
     setExcludedSubs(prev => {
       const current = new Set(prev[catId] || []);
@@ -1617,34 +1626,46 @@ function ProjectionView({ expenses, categories, budgets }) {
   }, [expenses, isExcluded]);
 
   const monthlyAvg = useMemo(() => {
-    const now = new Date();
-    const last2 = [1,2].map(i => new Date(now.getFullYear(), now.getMonth()-i,1).toISOString().slice(0,7));
     return Object.fromEntries(categories.map(c => {
-      const sel = catMonths[c.id];
-      const avg = sel ? getMonthSpend(c.id, sel) : last2.reduce((s,m)=>s+getMonthSpend(c.id,m),0)/2;
-      return [c.id, { avg, month: sel||null }];
+      const sel = getSelectedMonth(c.id);
+      const avg = getMonthSpend(c.id, sel);
+      return [c.id, { avg, month: sel }];
     }));
-  }, [expenses, categories, excludedSubs, catMonths, getMonthSpend]);
+  // eslint-disable-next-line
+  }, [expenses, categories, excludedSubs, catMonths, getMonthSpend, defaultMonth]);
 
   const totalAvg = Object.values(monthlyAvg).reduce((s,v)=>s+v.avg,0);
 
   const catHistory = useMemo(() => {
     const now = new Date();
-    return Object.fromEntries(categories.map(c => {
-      const points = [];
-      for (let i=5;i>=0;i--) {
-        const d = new Date(now.getFullYear(), now.getMonth()-i,1);
-        const m = d.toISOString().slice(0,7);
-        const total = expenses.filter(e=>e.date.startsWith(m)&&e.catId===c.id&&!(e.subCatId&&isExcluded(c.id,e.subCatId))).reduce((s,e)=>s+e.amount,0);
-        points.push({ m, label:d.toLocaleString("es-AR",{month:"short"}), total });
+    const currentYear = now.getFullYear();
+    // All months from Jan of current year up to current month
+    const points_months = [];
+    for (let m = 0; m <= now.getMonth(); m++) {
+      const d = new Date(currentYear, m, 1);
+      points_months.push({ d, key: d.toISOString().slice(0,7), label: d.toLocaleString("es-AR",{month:"short"}) });
+    }
+    // Also include Dec of previous year for context if less than 3 months this year
+    if (points_months.length < 3) {
+      for (let m = 12 - (3 - points_months.length); m < 12; m++) {
+        const d = new Date(currentYear - 1, m, 1);
+        points_months.unshift({ d, key: d.toISOString().slice(0,7), label: d.toLocaleString("es-AR",{month:"short"}) });
       }
-      const n=points.length, ys=points.map(p=>p.total), xs=[0,1,2,3,4,5];
-      const sX=xs.reduce((a,b)=>a+b,0),sY=ys.reduce((a,b)=>a+b,0);
-      const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0),sXX=xs.reduce((s,x)=>s+x*x,0);
-      const slope=(n*sXY-sX*sY)/(n*sXX-sX*sX)||0;
-      const intercept=(sY-slope*sX)/n;
-      const trendPoints=xs.map(x=>Math.max(0,slope*x+intercept));
-      const nextProj=Math.max(0,slope*n+intercept);
+    }
+    return Object.fromEntries(categories.map(c => {
+      const points = points_months.map(({ key, label }) => ({
+        m: key, label,
+        total: expenses.filter(e => e.date.startsWith(key) && e.catId === c.id && !(e.subCatId && isExcluded(c.id, e.subCatId))).reduce((s,e)=>s+e.amount,0)
+      }));
+      const n = points.length;
+      const ys = points.map(p=>p.total);
+      const xs = points.map((_,i)=>i);
+      const sX=xs.reduce((a,b)=>a+b,0), sY=ys.reduce((a,b)=>a+b,0);
+      const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0), sXX=xs.reduce((s,x)=>s+x*x,0);
+      const slope = (n*sXY-sX*sY)/(n*sXX-sX*sX)||0;
+      const intercept = (sY-slope*sX)/n;
+      const trendPoints = xs.map(x=>Math.max(0, slope*x+intercept));
+      const nextProj = Math.max(0, slope*n+intercept);
       return [c.id, { points, slope, trendPoints, nextProj }];
     }));
   }, [expenses, categories, excludedSubs, isExcluded]);
@@ -1700,9 +1721,8 @@ function ProjectionView({ expenses, categories, budgets }) {
   };
 
   const MonthSelector = ({ catId }) => (
-    <select value={catMonths[catId]||""} onChange={e=>setCatMonths(p=>({...p,[catId]:e.target.value||undefined}))}
+    <select value={getSelectedMonth(catId)} onChange={e => setCatMonths(p => ({...p, [catId]: e.target.value}))}
       style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
-      <option value="">Prom 2m</option>
       {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
     </select>
   );
@@ -1831,12 +1851,13 @@ function ProjectionView({ expenses, categories, budgets }) {
             <SectionLabel>Historial + proyección</SectionLabel>
             {(()=>{
               const now=new Date();
+              const currentYear=now.getFullYear();
               const meses=[];
-              for(let i=5;i>=0;i--){
-                const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-                const m=d.toISOString().slice(0,7);
-                const total=expenses.filter(e=>e.date.startsWith(m)&&!(e.subCatId&&isExcluded(e.catId,e.subCatId))).reduce((s,e)=>s+e.amount,0);
-                meses.push({m,label:d.toLocaleString("es-AR",{month:"short"}),total});
+              for(let m=0;m<=now.getMonth();m++){
+                const d=new Date(currentYear,m,1);
+                const key=d.toISOString().slice(0,7);
+                const total=expenses.filter(e=>e.date.startsWith(key)&&!(e.subCatId&&isExcluded(e.catId,e.subCatId))).reduce((s,e)=>s+e.amount,0);
+                meses.push({m:key,label:d.toLocaleString("es-AR",{month:"short"}),total});
               }
               const nextD=new Date(now.getFullYear(),now.getMonth()+1,1);
               meses.push({m:"proj",label:nextD.toLocaleString("es-AR",{month:"short"})+" ▸",total:Math.round(totalAvg),isProj:true});
@@ -2438,7 +2459,7 @@ export default function App() {
 
         {/* FAB */}
         <button onClick={() => setModal("add")}
-          style={{ background: "#1abc9c", border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 18px rgba(26,188,156,.5)", transition: "transform .15s, box-shadow .15s", marginTop: -20, flexShrink: 0 }}
+          style={{ background: "#1abc9c", border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 18px rgba(26,188,156,.5)", transition: "transform .15s, box-shadow .15s", marginTop: -24, flexShrink: 0, position: "relative", zIndex: 10 }}
           onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(26,188,156,.65)"; }}
           onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(26,188,156,.5)"; }}
           onMouseDown={e => e.currentTarget.style.transform = "scale(.95)"}
