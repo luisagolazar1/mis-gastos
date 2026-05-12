@@ -299,10 +299,10 @@ function IconPicker({ selected, onSelect }) {
 }
 
 // ── SVG Nav Icons ─────────────────────────────────────────────────────
-function IconDashboard({ active }) {
+function IconDashboard({ active, size=30 }) {
   const bg = active ? "#e74c3c" : "#dde8dd";
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill={bg}/>
       <rect x="7" y="17" width="4" height="7" rx="1" fill="white"/>
       <rect x="13" y="12" width="4" height="12" rx="1" fill="white"/>
@@ -311,20 +311,20 @@ function IconDashboard({ active }) {
   );
 }
 
-function IconHistory({ active }) {
+function IconHistory({ active, size=30 }) {
   const bg = active ? "#1abc9c" : "#dde8dd";
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill={bg}/>
       <path d="M11 8h8a1 1 0 011 1v13l-4.5-2.8L11 22V9a1 1 0 011-1z" fill="white"/>
     </svg>
   );
 }
 
-function IconShopping({ active }) {
+function IconShopping({ active, size=30 }) {
   const bg = active ? "#2c3e50" : "#dde8dd";
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill={bg}/>
       <path d="M7 9h2.5l1.5 1.5M9.5 9L11 14h9l-1.5 6h-8L9 14" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
       <circle cx="12" cy="22" r="1.2" fill="white"/>
@@ -333,10 +333,10 @@ function IconShopping({ active }) {
   );
 }
 
-function IconReport({ active }) {
+function IconReport({ active, size=30 }) {
   const bg = active ? "#9b59b6" : "#dde8dd";
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill={bg}/>
       <rect x="8" y="6" width="14" height="18" rx="2" fill="none" stroke="white" strokeWidth="1.8"/>
       <line x1="11" y1="11" x2="19" y2="11" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
@@ -345,10 +345,11 @@ function IconReport({ active }) {
     </svg>
   );
 }
-function IconProjection({ active }) {
+
+function IconProjection({ active, size=30 }) {
   const bg = active ? "#2980b9" : "#dde8dd";
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill={bg}/>
       <polyline points="5,22 10,15 15,17 20,9 25,6" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
       <polyline points="21,6 25,6 25,10" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -357,9 +358,9 @@ function IconProjection({ active }) {
   );
 }
 
-function IconExport() {
+function IconExport({ size=30 }) {
   return (
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+    <svg width={size} height={size} viewBox="0 0 30 30" fill="none">
       <rect width="30" height="30" rx="8" fill="#1abc9c"/>
       <path d="M15 7v11" stroke="white" strokeWidth="2" strokeLinecap="round"/>
       <path d="M10 13l5 5 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1652,9 +1653,10 @@ function ProjectionView({ expenses, categories, budgets }) {
       }
     }
     return Object.fromEntries(categories.map(c => {
+      // Historical points: NEVER filtered by excludedSubs — real data stays intact
       const points = points_months.map(({ key, label }) => ({
         m: key, label,
-        total: expenses.filter(e => e.date.startsWith(key) && e.catId === c.id && !(e.subCatId && isExcluded(c.id, e.subCatId))).reduce((s,e)=>s+e.amount,0)
+        total: expenses.filter(e => e.date.startsWith(key) && e.catId === c.id).reduce((s,e)=>s+e.amount,0)
       }));
       const n = points.length;
       const ys = points.map(p=>p.total);
@@ -1664,10 +1666,11 @@ function ProjectionView({ expenses, categories, budgets }) {
       const slope = (n*sXY-sX*sY)/(n*sXX-sX*sX)||0;
       const intercept = (sY-slope*sX)/n;
       const trendPoints = xs.map(x=>Math.max(0, slope*x+intercept));
-      const nextProj = Math.max(0, slope*n+intercept);
+      // nextProj = monthlyAvg (respects excludedSubs and selected month)
+      const nextProj = monthlyAvg[c.id]?.avg ?? Math.max(0, slope*n+intercept);
       return [c.id, { points, slope, trendPoints, nextProj }];
     }));
-  }, [expenses, categories, excludedSubs, isExcluded]);
+  }, [expenses, categories, monthlyAvg]);
 
   const trend = useMemo(()=>Object.fromEntries(categories.map(c=>{
     const hist=catHistory[c.id]?.points||[];
@@ -2441,63 +2444,65 @@ export default function App() {
       {editingExpense        && <ExpenseModal expense={editingExpense} categories={categories} onSave={editExpense} onClose={() => setEditingExpense(null)} onAddCategory={addCategoryInline} />}
 
       {/* Bottom Nav + FAB */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-around", padding: "8px 0 max(8px, env(safe-area-inset-bottom))", boxShadow: "0 -4px 20px rgba(45,106,45,.12)" }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50, background: T.surface, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-around", paddingBottom: "max(8px, env(safe-area-inset-bottom))", paddingTop: 6, boxShadow: "0 -4px 20px rgba(45,106,45,.12)", height: 64 }}>
 
         {/* Dashboard */}
-        <button onClick={() => setView("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("dashboard")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconDashboard active={view === "dashboard"} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: view === "dashboard" ? T.accent : T.muted, fontFamily: "inherit" }}>Inicio</span>
-          {view === "dashboard" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
+          <IconDashboard active={view === "dashboard"} size={24}/>
+          <span style={{ fontSize: 9, fontWeight: 600, color: view === "dashboard" ? T.accent : T.muted, fontFamily: "inherit" }}>Inicio</span>
+          {view === "dashboard" && <div style={{ width: 4, height: 3, borderRadius: 2, background: T.accent, marginTop: -1 }} />}
         </button>
 
         {/* Historial */}
-        <button onClick={() => setView("history")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("history")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconHistory active={view === "history"} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: view === "history" ? T.accent : T.muted, fontFamily: "inherit" }}>Historial</span>
-          {view === "history" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
+          <IconHistory active={view === "history"} size={24}/>
+          <span style={{ fontSize: 9, fontWeight: 600, color: view === "history" ? T.accent : T.muted, fontFamily: "inherit" }}>Historial</span>
+          {view === "history" && <div style={{ width: 4, height: 3, borderRadius: 2, background: T.accent, marginTop: -1 }} />}
         </button>
 
-        {/* FAB */}
-        <button onClick={() => setModal("add")}
-          style={{ background: "#1abc9c", border: "none", borderRadius: "50%", width: 60, height: 60, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 18px rgba(26,188,156,.5)", transition: "transform .15s, box-shadow .15s", marginTop: -24, flexShrink: 0, position: "relative", zIndex: 10 }}
-          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(26,188,156,.65)"; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(26,188,156,.5)"; }}
-          onMouseDown={e => e.currentTarget.style.transform = "scale(.95)"}
-          onMouseUp={e => e.currentTarget.style.transform = "scale(1.1)"}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect x="13" y="5" width="2" height="18" rx="1" fill="white"/>
-            <rect x="5" y="13" width="18" height="2" rx="1" fill="white"/>
-          </svg>
-        </button>
+        {/* FAB — perfectly centered */}
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", position: "relative" }}>
+          <button onClick={() => setModal("add")}
+            style={{ background: "#1abc9c", border: "3px solid #fff", borderRadius: "50%", width: 58, height: 58, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 18px rgba(26,188,156,.5)", transition: "transform .15s, box-shadow .15s", position: "absolute", top: "50%", transform: "translateY(-50%) translateY(-16px)", zIndex: 10, flexShrink: 0 }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-50%) translateY(-16px) scale(1.1)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(26,188,156,.65)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "translateY(-50%) translateY(-16px)"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(26,188,156,.5)"; }}
+            onMouseDown={e => { e.currentTarget.style.transform = "translateY(-50%) translateY(-16px) scale(.95)"; }}
+            onMouseUp={e => { e.currentTarget.style.transform = "translateY(-50%) translateY(-16px) scale(1.1)"; }}>
+            <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+              <rect x="13" y="5" width="2" height="18" rx="1" fill="white"/>
+              <rect x="5" y="13" width="18" height="2" rx="1" fill="white"/>
+            </svg>
+          </button>
+        </div>
 
         {/* Compras */}
-        <button onClick={() => setView("shopping")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("shopping")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconShopping active={view === "shopping"} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
+          <IconShopping active={view === "shopping"} size={24}/>
+          <span style={{ fontSize: 9, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
           {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
         </button>
 
         {/* Proyección */}
-        <button onClick={() => setView("projection")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => setView("projection")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconProjection active={view === "projection"} />
-          <span style={{ fontSize: 10, fontWeight: 600, color: view === "projection" ? T.accent : T.muted, fontFamily: "inherit" }}>Proyección</span>
-          {view === "projection" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
+          <IconProjection active={view === "projection"} size={24}/>
+          <span style={{ fontSize: 9, fontWeight: 600, color: view === "projection" ? T.accent : T.muted, fontFamily: "inherit" }}>Proyección</span>
+          {view === "projection" && <div style={{ width: 4, height: 3, borderRadius: 2, background: T.accent, marginTop: -1 }} />}
         </button>
 
         {/* Exportar */}
-        <button onClick={() => exportCSV(monthExp, catMap)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "4px 12px", borderRadius: 12, transition: "transform .15s" }}
+        <button onClick={() => exportCSV(monthExp, catMap)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
           onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconExport />
-          <span style={{ fontSize: 10, fontWeight: 600, color: T.muted, fontFamily: "inherit" }}>Exportar</span>
+          <IconExport size={24}/>
+          <span style={{ fontSize: 9, fontWeight: 600, color: T.muted, fontFamily: "inherit" }}>Exportar</span>
         </button>
 
       </div>
