@@ -1710,19 +1710,19 @@ function ProjectionView({ expenses, categories, budgets }) {
     }));
   }, [expenses, categories, catMonths, defaultMonth, excludedExpIds]);
 
+  const [expandedCats, setExpandedCats] = useState({});
+  const toggleExpanded = (catId) => setExpandedCats(p => ({...p, [catId]: !p[catId]}));
+
   const ExpenseFilter = ({ catId }) => {
     const items = getCatExpenses(catId);
     if (!items.length) return null;
-    const [expanded, setExpanded] = useState(false);
+    const expanded = expandedCats[catId] || false;
     const visible = expanded ? items : items.slice(0, 5);
-    const total = items.reduce((s,e)=>s+e.amount,0);
     const excluded = items.filter(e=>excludedExpIds.has(e.id)).reduce((s,e)=>s+e.amount,0);
     return (
       <div style={{ marginTop: 8 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 5 }}>
-          <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>
-            Gastos del período
-          </span>
+          <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>Gastos del período</span>
           {excluded > 0 && <span style={{ fontSize: 10, color: T.accentMd, fontWeight: 700 }}>💰 Excluido: {fmt(excluded)}</span>}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1747,7 +1747,7 @@ function ProjectionView({ expenses, categories, budgets }) {
           })}
         </div>
         {items.length > 5 && (
-          <button onClick={() => setExpanded(p=>!p)}
+          <button onClick={() => toggleExpanded(catId)}
             style={{ width:"100%", marginTop:4, padding:"4px", borderRadius:8, border:`1px dashed ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontFamily:"inherit", fontSize:10 }}>
             {expanded ? "▲ Ver menos" : `▼ Ver ${items.length-5} más`}
           </button>
