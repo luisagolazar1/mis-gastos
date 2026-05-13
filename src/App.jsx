@@ -1634,8 +1634,6 @@ function ProjectionView({ expenses, categories, budgets }) {
     }));
   }, [expenses, categories, excludedSubs, catMonths, defaultMonth, getMonthSpend]);
 
-  const totalAvg = Object.values(monthlyAvgFiltered).reduce((s,v)=>s+v.avg,0);
-
   const catHistory = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -1679,16 +1677,6 @@ function ProjectionView({ expenses, categories, budgets }) {
     return [c.id,{pct:+pct.toFixed(1)}];
   })),[catHistory,categories]);
 
-  const forecast = useMemo(()=>[1,3,6,12].map(n=>({ months:n, projected:Math.round(totalAvg*n) })),[totalAvg]);
-
-  const simTotal = useMemo(()=>categories.reduce((s,c)=>{
-    const base=monthlyAvgFiltered[c.id]?.avg||0;
-    return s+base*(1+(simChanges[c.id]||0)/100);
-  },0),[categories,monthlyAvgFiltered,simChanges]);
-
-  const budgetTotal=Number(budgets.__total)||0;
-  const simSaving=totalAvg-simTotal;
-
   const [excludedExpIds, setExcludedExpIds] = useState(new Set());
   const toggleExp = (id) => setExcludedExpIds(prev => {
     const next = new Set(prev);
@@ -1701,7 +1689,6 @@ function ProjectionView({ expenses, categories, budgets }) {
     return expenses.filter(e => e.catId === catId && e.date.startsWith(sel)).sort((a,b) => b.amount - a.amount);
   }, [expenses, catMonths, defaultMonth]);
 
-  // monthlyAvg must also respect excludedExpIds
   const monthlyAvgFiltered = useMemo(() => {
     return Object.fromEntries(categories.map(c => {
       const sel = catMonths[c.id] !== undefined ? catMonths[c.id] : defaultMonth;
@@ -1709,6 +1696,18 @@ function ProjectionView({ expenses, categories, budgets }) {
       return [c.id, { avg, month: sel }];
     }));
   }, [expenses, categories, catMonths, defaultMonth, excludedExpIds]);
+
+  const totalAvg = Object.values(monthlyAvgFiltered).reduce((s,v)=>s+v.avg,0);
+
+  const forecast = useMemo(()=>[1,3,6,12].map(n=>({ months:n, projected:Math.round(totalAvg*n) })),[totalAvg]);
+
+  const simTotal = useMemo(()=>categories.reduce((s,c)=>{
+    const base=monthlyAvgFiltered[c.id]?.avg||0;
+    return s+base*(1+(simChanges[c.id]||0)/100);
+  },0),[categories,monthlyAvgFiltered,simChanges]);
+
+  const budgetTotal=Number(budgets.__total)||0;
+  const simSaving=totalAvg-simTotal;
 
   const [expandedCats, setExpandedCats] = useState({});
   const toggleExpanded = (catId) => setExpandedCats(p => ({...p, [catId]: !p[catId]}));
