@@ -1588,222 +1588,196 @@ Respondé en español con este formato JSON exacto (sin markdown, solo JSON):
 }
 
 // ── Projection View ───────────────────────────────────────────────────
+// ── Projection sub-components (defined OUTSIDE ProjectionView) ────────
+function ProjMonthSelector({ catId, catMonths, defaultMonth, availableMonths, setCatMonths }) {
+  const selVal = catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
+  return (
+    <select value={selVal} onChange={e => setCatMonths(p => ({...p, [catId]: e.target.value}))}
+      style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
+      {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
+    </select>
+  );
+}
+
+function ProjMiniBarChart({ catId, catHistory }) {
+  const hist = catHistory[catId];
+  if (!hist) return null;
+  const {points, trendPoints, nextProj} = hist;
+  const allVals = [...points.map(p=>p.total), nextProj].filter(v=>v>0);
+  if (!allVals.length) return null;
+  const maxVal = Math.max(...allVals, 1);
+  const W=280, H=72, pL=4, pR=4, pT=10, pB=18;
+  const iW=W-pL-pR, iH=H-pT-pB;
+  const allPts = [...points, {m:"proj", label:"Proj", total:nextProj, isProj:true}];
+  const bW = iW/allPts.length - 3;
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block",marginTop:6}}>
+      {allPts.map((p,i) => {
+        const x = pL + i*(iW/allPts.length) + 1.5;
+        const bH = p.total>0 ? (p.total/maxVal)*iH : 1;
+        const y = pT+iH-bH;
+        return (
+          <g key={p.m}>
+            <rect x={x} y={y} width={bW} height={bH} fill={p.isProj?`${T.accent}55`:T.accent} rx="2"
+              stroke={p.isProj?T.accent:"none"} strokeDasharray={p.isProj?"3,2":"none"}/>
+            <text x={x+bW/2} y={H-2} textAnchor="middle" fontSize="7" fill={p.isProj?T.accent:T.subtle}>{p.label}</text>
+            {p.total>0&&<text x={x+bW/2} y={y-2} textAnchor="middle" fontSize="6" fill={T.subtle}>{Math.round(p.total/1000)}K</text>}
+          </g>
+        );
+      })}
+      {trendPoints.length>1&&(
+        <polyline
+          points={trendPoints.map((v,i)=>{
+            const x=pL+i*(iW/allPts.length)+1.5+bW/2;
+            return `${x},${pT+iH-(v/maxVal)*iH}`;
+          }).join(" ")}
+          fill="none" stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="4,2" opacity=".8"/>
+      )}
+      {trendPoints.length>0&&(()=>{
+        const li=trendPoints.length-1;
+        const x1=pL+li*(iW/allPts.length)+1.5+bW/2, y1=pT+iH-(trendPoints[li]/maxVal)*iH;
+        const x2=pL+(allPts.length-1)*(iW/allPts.length)+1.5+bW/2, y2=pT+iH-(nextProj/maxVal)*iH;
+        return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="3,3" opacity=".5"/>;
+      })()}
+    </svg>
+  );
+}
+
+function ProjExpenseFilter({ catId, items, excludedExpIds, toggleExp, catMap, expandedCats, toggleExpanded }) {
+  if (!items.length) return null;
+  const expanded = expandedCats[catId] || false;
+  const visible = expanded ? items : items.slice(0, 5);
+  const excluded = items.filter(e=>excludedExpIds.has(e.id)).reduce((s,e)=>s+e.amount,0);
+  return (
+    <div style={{marginTop:8}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+        <span style={{fontSize:10,color:T.subtle,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}}>Gastos del período</span>
+        {excluded>0&&<span style={{fontSize:10,color:T.accentMd,fontWeight:700}}>💰 Excluido: {fmt(excluded)}</span>}
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:3}}>
+        {visible.map(e=>{
+          const excl=excludedExpIds.has(e.id);
+          const sub=catMap[catId]?.subcats?.find(s=>s.id===e.subCatId);
+          return(
+            <button key={e.id} onClick={()=>toggleExp(e.id)}
+              style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:9,border:`1px solid ${excl?T.border:T.accent}`,background:excl?T.bg:T.accentLt,cursor:"pointer",fontFamily:"inherit",textAlign:"left",transition:"all .12s",opacity:excl?0.5:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                <span style={{fontSize:11,color:excl?T.subtle:T.accent,fontWeight:700,flexShrink:0}}>{excl?"✕":"✓"}</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:11,color:excl?T.subtle:T.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:excl?"line-through":"none",maxWidth:190}}>
+                    {e.desc||sub?.name||"Sin descripción"}
+                  </div>
+                  {sub&&<div style={{fontSize:9,color:T.subtle}}>{sub.name}</div>}
+                </div>
+              </div>
+              <span style={{fontSize:12,fontWeight:700,color:excl?T.subtle:T.accent,flexShrink:0,marginLeft:8,textDecoration:excl?"line-through":"none"}}>{fmt(e.amount)}</span>
+            </button>
+          );
+        })}
+      </div>
+      {items.length>5&&(
+        <button onClick={()=>toggleExpanded(catId)}
+          style={{width:"100%",marginTop:4,padding:"4px",borderRadius:8,border:`1px dashed ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:10}}>
+          {expanded?`▲ Ver menos`:`▼ Ver ${items.length-5} más`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Projection View ───────────────────────────────────────────────────
 function ProjectionView({ expenses, categories, budgets }) {
   const [tab, setTab] = useState("next");
   const [simChanges, setSimChanges] = useState({});
-  const [excludedSubs, setExcludedSubs] = useState({});
   const [catMonths, setCatMonths] = useState({});
-  const catMap = useMemo(() => Object.fromEntries(categories.map(c => [c.id, c])), [categories]);
+  const [excludedExpIds, setExcludedExpIds] = useState(new Set());
+  const [expandedCats, setExpandedCats] = useState({});
+
+  const catMap = useMemo(() => Object.fromEntries(categories.map(c=>[c.id,c])), [categories]);
 
   const availableMonths = useMemo(() => {
-    const set = new Set(expenses.map(e => e.date.slice(0,7)));
+    const set = new Set(expenses.map(e=>e.date.slice(0,7)));
     return [...set].sort().reverse();
   }, [expenses]);
 
-  // Default: last month with data
   const defaultMonth = useMemo(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
   }, []);
 
-  // Get selected month for a category (default = last month)
-  const getSelectedMonth = (catId) => catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
-
-  const toggleSub = (catId, subId) => {
-    setExcludedSubs(prev => {
-      const current = new Set(prev[catId] || []);
-      current.has(subId) ? current.delete(subId) : current.add(subId);
-      return { ...prev, [catId]: current };
-    });
-  };
-  const isExcluded = useCallback((catId, subId) => !!(excludedSubs[catId]?.has(subId)), [excludedSubs]);
-
-  const getMonthSpend = useCallback((catId, month) => {
-    return expenses.filter(e => {
-      if (!e.date.startsWith(month) || e.catId !== catId) return false;
-      if (e.subCatId && isExcluded(catId, e.subCatId)) return false;
-      return true;
-    }).reduce((s, e) => s + e.amount, 0);
-  }, [expenses, isExcluded]);
-
-  const monthlyAvg = useMemo(() => {
-    return Object.fromEntries(categories.map(c => {
-      const sel = catMonths[c.id] !== undefined ? catMonths[c.id] : defaultMonth;
-      const avg = getMonthSpend(c.id, sel);
-      return [c.id, { avg, month: sel }];
-    }));
-  }, [expenses, categories, excludedSubs, catMonths, defaultMonth, getMonthSpend]);
-
-  const catHistory = useMemo(() => {
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    // All months from Jan of current year up to current month
-    const points_months = [];
-    for (let m = 0; m <= now.getMonth(); m++) {
-      const d = new Date(currentYear, m, 1);
-      points_months.push({ d, key: d.toISOString().slice(0,7), label: d.toLocaleString("es-AR",{month:"short"}) });
-    }
-    // Also include Dec of previous year for context if less than 3 months this year
-    if (points_months.length < 3) {
-      for (let m = 12 - (3 - points_months.length); m < 12; m++) {
-        const d = new Date(currentYear - 1, m, 1);
-        points_months.unshift({ d, key: d.toISOString().slice(0,7), label: d.toLocaleString("es-AR",{month:"short"}) });
-      }
-    }
-    return Object.fromEntries(categories.map(c => {
-      // Historical points: NEVER filtered by excludedSubs — real data stays intact
-      const points = points_months.map(({ key, label }) => ({
-        m: key, label,
-        total: expenses.filter(e => e.date.startsWith(key) && e.catId === c.id).reduce((s,e)=>s+e.amount,0)
-      }));
-      const n = points.length;
-      const ys = points.map(p=>p.total);
-      const xs = points.map((_,i)=>i);
-      const sX=xs.reduce((a,b)=>a+b,0), sY=ys.reduce((a,b)=>a+b,0);
-      const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0), sXX=xs.reduce((s,x)=>s+x*x,0);
-      const slope = (n*sXY-sX*sY)/(n*sXX-sX*sX)||0;
-      const intercept = (sY-slope*sX)/n;
-      const trendPoints = xs.map(x=>Math.max(0, slope*x+intercept));
-      // nextProj = monthlyAvgFiltered (respects excludedExpIds and selected month)
-      const nextProj = monthlyAvgFiltered[c.id]?.avg ?? Math.max(0, slope*n+intercept);
-      return [c.id, { points, slope, trendPoints, nextProj }];
-    }));
-  }, [expenses, categories, monthlyAvgFiltered]);
-
-  const trend = useMemo(()=>Object.fromEntries(categories.map(c=>{
-    const hist=catHistory[c.id]?.points||[];
-    const l=hist.slice(-2);
-    const pct=l[0]?.total>0?((l[1]?.total||0)-l[0].total)/l[0].total*100:0;
-    return [c.id,{pct:+pct.toFixed(1)}];
-  })),[catHistory,categories]);
-
-  const [excludedExpIds, setExcludedExpIds] = useState(new Set());
   const toggleExp = (id) => setExcludedExpIds(prev => {
-    const next = new Set(prev);
-    next.has(id) ? next.delete(id) : next.add(id);
-    return next;
+    const next = new Set(prev); next.has(id)?next.delete(id):next.add(id); return next;
   });
+  const toggleExpanded = (catId) => setExpandedCats(p=>({...p,[catId]:!p[catId]}));
 
-  const getCatExpenses = useCallback((catId) => {
+  // Per-category expenses for selected month
+  const getCatExps = useCallback((catId) => {
     const sel = catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
-    return expenses.filter(e => e.catId === catId && e.date.startsWith(sel)).sort((a,b) => b.amount - a.amount);
+    return expenses.filter(e=>e.catId===catId&&e.date.startsWith(sel)).sort((a,b)=>b.amount-a.amount);
   }, [expenses, catMonths, defaultMonth]);
 
+  // Monthly avg filtered by excluded expenses
   const monthlyAvgFiltered = useMemo(() => {
-    return Object.fromEntries(categories.map(c => {
-      const sel = catMonths[c.id] !== undefined ? catMonths[c.id] : defaultMonth;
-      const avg = expenses.filter(e => e.catId === c.id && e.date.startsWith(sel) && !excludedExpIds.has(e.id)).reduce((s,e)=>s+e.amount,0);
-      return [c.id, { avg, month: sel }];
+    return Object.fromEntries(categories.map(c=>{
+      const sel = catMonths[c.id]!==undefined ? catMonths[c.id] : defaultMonth;
+      const avg = expenses.filter(e=>e.catId===c.id&&e.date.startsWith(sel)&&!excludedExpIds.has(e.id)).reduce((s,e)=>s+e.amount,0);
+      return [c.id, {avg, month:sel}];
     }));
   }, [expenses, categories, catMonths, defaultMonth, excludedExpIds]);
 
-  const totalAvg = Object.values(monthlyAvgFiltered).reduce((s,v)=>s+v.avg,0);
+  const totalAvg = useMemo(() => Object.values(monthlyAvgFiltered).reduce((s,v)=>s+v.avg,0), [monthlyAvgFiltered]);
 
-  const forecast = useMemo(()=>[1,3,6,12].map(n=>({ months:n, projected:Math.round(totalAvg*n) })),[totalAvg]);
+  // Historical chart data (NOT filtered — real data always shown)
+  const catHistory = useMemo(() => {
+    const now = new Date();
+    const yr = now.getFullYear();
+    const pts = [];
+    for (let m=0; m<=now.getMonth(); m++) {
+      const d = new Date(yr,m,1);
+      pts.push({key:d.toISOString().slice(0,7), label:d.toLocaleString("es-AR",{month:"short"})});
+    }
+    if (pts.length<3) {
+      for (let m=12-(3-pts.length); m<12; m++) {
+        const d=new Date(yr-1,m,1);
+        pts.unshift({key:d.toISOString().slice(0,7),label:d.toLocaleString("es-AR",{month:"short"})});
+      }
+    }
+    return Object.fromEntries(categories.map(c=>{
+      const points = pts.map(({key,label})=>({
+        m:key, label,
+        total:expenses.filter(e=>e.date.startsWith(key)&&e.catId===c.id).reduce((s,e)=>s+e.amount,0)
+      }));
+      const n=points.length, ys=points.map(p=>p.total), xs=points.map((_,i)=>i);
+      const sX=xs.reduce((a,b)=>a+b,0),sY=ys.reduce((a,b)=>a+b,0);
+      const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0),sXX=xs.reduce((s,x)=>s+x*x,0);
+      const slope=(n*sXY-sX*sY)/(n*sXX-sX*sX)||0, intercept=(sY-slope*sX)/n;
+      const trendPoints=xs.map(x=>Math.max(0,slope*x+intercept));
+      const nextProj = monthlyAvgFiltered[c.id]?.avg ?? Math.max(0,slope*n+intercept);
+      return [c.id,{points,trendPoints,nextProj}];
+    }));
+  }, [expenses, categories, monthlyAvgFiltered]);
 
-  const simTotal = useMemo(()=>categories.reduce((s,c)=>{
-    const base=monthlyAvgFiltered[c.id]?.avg||0;
-    return s+base*(1+(simChanges[c.id]||0)/100);
-  },0),[categories,monthlyAvgFiltered,simChanges]);
+  const trend = useMemo(() => Object.fromEntries(categories.map(c=>{
+    const h=catHistory[c.id]?.points||[];
+    const l=h.slice(-2);
+    const pct=l[0]?.total>0?((l[1]?.total||0)-l[0].total)/l[0].total*100:0;
+    return [c.id,{pct:+pct.toFixed(1)}];
+  })), [catHistory, categories]);
 
-  const budgetTotal=Number(budgets.__total)||0;
-  const simSaving=totalAvg-simTotal;
+  const forecast = useMemo(()=>[1,3,6,12].map(n=>({months:n,projected:Math.round(totalAvg*n)})),[totalAvg]);
 
-  const [expandedCats, setExpandedCats] = useState({});
-  const toggleExpanded = (catId) => setExpandedCats(p => ({...p, [catId]: !p[catId]}));
+  const simTotal = useMemo(()=>categories.reduce((s,c)=>s+((monthlyAvgFiltered[c.id]?.avg||0)*(1+(simChanges[c.id]||0)/100)),0),
+    [categories,monthlyAvgFiltered,simChanges]);
 
-  const ExpenseFilter = ({ catId }) => {
-    const items = getCatExpenses(catId);
-    if (!items.length) return null;
-    const expanded = expandedCats[catId] || false;
-    const visible = expanded ? items : items.slice(0, 5);
-    const excluded = items.filter(e=>excludedExpIds.has(e.id)).reduce((s,e)=>s+e.amount,0);
-    return (
-      <div style={{ marginTop: 8 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: 5 }}>
-          <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase", letterSpacing: .5 }}>Gastos del período</span>
-          {excluded > 0 && <span style={{ fontSize: 10, color: T.accentMd, fontWeight: 700 }}>💰 Excluido: {fmt(excluded)}</span>}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-          {visible.map(e => {
-            const excl = excludedExpIds.has(e.id);
-            const sub = catMap[catId]?.subcats?.find(s => s.id === e.subCatId);
-            return (
-              <button key={e.id} onClick={() => toggleExp(e.id)}
-                style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", borderRadius:9, border:`1px solid ${excl?T.border:T.accent}`, background:excl?T.bg:T.accentLt, cursor:"pointer", fontFamily:"inherit", textAlign:"left", transition:"all .12s", opacity: excl ? 0.5 : 1 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0 }}>
-                  <span style={{ fontSize:11, color:excl?T.subtle:T.accent, fontWeight:700, flexShrink:0 }}>{excl?"✕":"✓"}</span>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:11, color:excl?T.subtle:T.text, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:excl?"line-through":"none", maxWidth:190 }}>
-                      {e.desc || sub?.name || "Sin descripción"}
-                    </div>
-                    {sub && <div style={{ fontSize:9, color:T.subtle }}>{sub.name}</div>}
-                  </div>
-                </div>
-                <span style={{ fontSize:12, fontWeight:700, color:excl?T.subtle:T.accent, flexShrink:0, marginLeft:8, textDecoration:excl?"line-through":"none" }}>{fmt(e.amount)}</span>
-              </button>
-            );
-          })}
-        </div>
-        {items.length > 5 && (
-          <button onClick={() => toggleExpanded(catId)}
-            style={{ width:"100%", marginTop:4, padding:"4px", borderRadius:8, border:`1px dashed ${T.border}`, background:"transparent", color:T.muted, cursor:"pointer", fontFamily:"inherit", fontSize:10 }}>
-            {expanded ? "▲ Ver menos" : `▼ Ver ${items.length-5} más`}
-          </button>
-        )}
-      </div>
-    );
-  };
+  const budgetTotal = Number(budgets.__total)||0;
+  const simSaving = totalAvg-simTotal;
 
-  const MonthSelector = ({ catId }) => {
-    const selVal = catMonths[catId] !== undefined ? catMonths[catId] : defaultMonth;
-    return (
-      <select value={selVal} onChange={e => setCatMonths(p => ({...p, [catId]: e.target.value}))}
-        style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:8,padding:"3px 7px",fontSize:10,color:T.muted,fontFamily:"inherit",cursor:"pointer"}}>
-        {availableMonths.map(m=><option key={m} value={m}>{m}</option>)}
-      </select>
-    );
-  };
+  const activeCats = useMemo(() => categories
+    .filter(c=>(monthlyAvgFiltered[c.id]?.avg||0)>0||catHistory[c.id]?.points.some(p=>p.total>0))
+    .sort((a,b)=>(monthlyAvgFiltered[b.id]?.avg||0)-(monthlyAvgFiltered[a.id]?.avg||0)),
+    [categories, monthlyAvgFiltered, catHistory]);
 
-  const MiniBarChart = ({ catId }) => {
-    const hist=catHistory[catId];
-    if(!hist)return null;
-    const {points,trendPoints,nextProj}=hist;
-    const allVals=[...points.map(p=>p.total),nextProj].filter(v=>v>0);
-    if(!allVals.length)return null;
-    const maxVal=Math.max(...allVals,1);
-    const W=280,H=72,pL=4,pR=4,pT=10,pB=18;
-    const iW=W-pL-pR,iH=H-pT-pB;
-    const allPts=[...points,{m:"proj",label:"Proj",total:nextProj,isProj:true}];
-    const bW=iW/allPts.length-3;
-    return(
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block",marginTop:6}}>
-        {allPts.map((p,i)=>{
-          const x=pL+i*(iW/allPts.length)+1.5;
-          const bH=p.total>0?(p.total/maxVal)*iH:1;
-          const y=pT+iH-bH;
-          return(
-            <g key={p.m}>
-              <rect x={x} y={y} width={bW} height={bH} fill={p.isProj?`${T.accent}55`:T.accent} rx="2" stroke={p.isProj?T.accent:"none"} strokeDasharray={p.isProj?"3,2":"none"}/>
-              <text x={x+bW/2} y={H-2} textAnchor="middle" fontSize="7" fill={p.isProj?T.accent:T.subtle}>{p.label}</text>
-              {p.total>0&&<text x={x+bW/2} y={y-2} textAnchor="middle" fontSize="6" fill={T.subtle}>{Math.round(p.total/1000)}K</text>}
-            </g>
-          );
-        })}
-        {trendPoints.length>1&&<polyline points={trendPoints.map((v,i)=>{const x=pL+i*(iW/allPts.length)+1.5+bW/2;const y=pT+iH-(v/maxVal)*iH;return`${x},${y}`;}).join(" ")} fill="none" stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="4,2" opacity=".8"/>}
-        {trendPoints.length>0&&(()=>{
-          const li=trendPoints.length-1;
-          const x1=pL+li*(iW/allPts.length)+1.5+bW/2,y1=pT+iH-(trendPoints[li]/maxVal)*iH;
-          const x2=pL+(allPts.length-1)*(iW/allPts.length)+1.5+bW/2,y2=pT+iH-(nextProj/maxVal)*iH;
-          return<line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#e74c3c" strokeWidth="1.5" strokeDasharray="3,3" opacity=".5"/>;
-        })()}
-      </svg>
-    );
-  };
-
-  const activeCats=categories.filter(c=>(monthlyAvgFiltered[c.id]?.avg||0)>0||catHistory[c.id]?.points.some(p=>p.total>0)).sort((a,b)=>(monthlyAvg[b.id]?.avg||0)-(monthlyAvg[a.id]?.avg||0));
-
-  return(
+  return (
     <div style={{maxWidth:680,margin:"0 auto"}}>
       <div style={{display:"flex",gap:6,marginBottom:16}}>
         {[["next","📅 Próximo mes"],["forecast","📈 Proyección"],["sim","🎛️ Simulador"]].map(([k,l])=>(
@@ -1818,15 +1792,15 @@ function ProjectionView({ expenses, categories, budgets }) {
         <div style={{animation:"fadeSlideUp .3s ease both"}}>
           <Card style={{marginBottom:12,textAlign:"center"}}>
             <SectionLabel>Proyección próximo mes</SectionLabel>
-            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Promedio 2 meses o mes seleccionado por categoría. Desactivá subcategorías para excluirlas.</p>
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Mes seleccionado por categoría. Excluí gastos para ajustar la proyección.</p>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
               <div style={{background:T.bg,borderRadius:12,padding:"14px",textAlign:"center"}}>
                 <div style={{fontSize:10,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.6}}>Base de cálculo</div>
-                <div style={{fontSize:20,fontWeight:700,color:T.muted}}>{fmt(Math.round(totalAvg))}</div>
+                <div style={{fontSize:18,fontWeight:700,color:T.muted}}>{fmt(Math.round(totalAvg))}</div>
               </div>
               <div style={{background:T.accentLt,borderRadius:12,padding:"14px",textAlign:"center",border:`1px solid ${T.border}`}}>
                 <div style={{fontSize:10,color:T.muted,marginBottom:6,textTransform:"uppercase",letterSpacing:.6}}>Proyectado</div>
-                <div style={{fontSize:20,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalAvg))}</div>
+                <div style={{fontSize:18,fontWeight:700,color:T.accent}}>{fmt(Math.round(totalAvg))}</div>
               </div>
             </div>
             {budgetTotal>0&&(
@@ -1845,6 +1819,7 @@ function ProjectionView({ expenses, categories, budgets }) {
               const limit=Number(budgets[c.id])||0;
               const pct=totalAvg>0?(avg/totalAvg*100).toFixed(0):0;
               const tp=trend[c.id]?.pct||0;
+              const catExps=getCatExps(c.id);
               return(
                 <div key={c.id} style={{padding:"14px 0",borderBottom:`1px solid ${T.border}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1859,12 +1834,12 @@ function ProjectionView({ expenses, categories, budgets }) {
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{fontSize:9,color:T.subtle}}>{pct}% del total{limit>0?` · Límite: ${fmt(limit)}`:""}</span>
-                        <MonthSelector catId={c.id}/>
+                        <ProjMonthSelector catId={c.id} catMonths={catMonths} defaultMonth={defaultMonth} availableMonths={availableMonths} setCatMonths={setCatMonths}/>
                       </div>
                     </div>
                   </div>
-                  <MiniBarChart catId={c.id}/>
-                  <ExpenseFilter catId={c.id}/>
+                  <ProjMiniBarChart catId={c.id} catHistory={catHistory}/>
+                  <ProjExpenseFilter catId={c.id} items={catExps} excludedExpIds={excludedExpIds} toggleExp={toggleExp} catMap={catMap} expandedCats={expandedCats} toggleExpanded={toggleExpanded}/>
                 </div>
               );
             })}
@@ -1876,7 +1851,7 @@ function ProjectionView({ expenses, categories, budgets }) {
         <div style={{animation:"fadeSlideUp .3s ease both"}}>
           <Card style={{marginBottom:12}}>
             <SectionLabel>Proyección acumulada</SectionLabel>
-            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Basado en los últimos 2 meses de historial.</p>
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Basado en el mes seleccionado por categoría.</p>
             <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
               {forecast.map(f=>(
                 <div key={f.months} style={{background:T.bg,borderRadius:14,padding:"14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
@@ -1889,25 +1864,24 @@ function ProjectionView({ expenses, categories, budgets }) {
             <SectionLabel>Historial + proyección</SectionLabel>
             {(()=>{
               const now=new Date();
-              const currentYear=now.getFullYear();
+              const yr=now.getFullYear();
               const meses=[];
               for(let m=0;m<=now.getMonth();m++){
-                const d=new Date(currentYear,m,1);
+                const d=new Date(yr,m,1);
                 const key=d.toISOString().slice(0,7);
-                const total=expenses.filter(e=>e.date.startsWith(key)&&!(e.subCatId&&isExcluded(e.catId,e.subCatId))).reduce((s,e)=>s+e.amount,0);
-                meses.push({m:key,label:d.toLocaleString("es-AR",{month:"short"}),total});
+                meses.push({m:key,label:d.toLocaleString("es-AR",{month:"short"}),total:expenses.filter(e=>e.date.startsWith(key)).reduce((s,e)=>s+e.amount,0)});
               }
-              const nextD=new Date(now.getFullYear(),now.getMonth()+1,1);
+              const nextD=new Date(yr,now.getMonth()+1,1);
               meses.push({m:"proj",label:nextD.toLocaleString("es-AR",{month:"short"})+" ▸",total:Math.round(totalAvg),isProj:true});
               const maxVal=Math.max(...meses.map(m=>m.total),1);
               const W=320,H=90,pL=4,pR=4,pT=12,pB=20;
               const iW=W-pL-pR,iH=H-pT-pB,bW=iW/meses.length-4;
-              const ys=meses.slice(0,6).map(m=>m.total);
-              const n=ys.length,xs=[0,1,2,3,4,5];
+              const ys=meses.slice(0,-1).map(m=>m.total);
+              const n=ys.length,xs=ys.map((_,i)=>i);
               const sX=xs.reduce((a,b)=>a+b,0),sY=ys.reduce((a,b)=>a+b,0);
               const sXY=xs.reduce((s,x,i)=>s+x*ys[i],0),sXX=xs.reduce((s,x)=>s+x*x,0);
               const slope=(n*sXY-sX*sY)/(n*sXX-sX*sX)||0,intercept=(sY-slope*sX)/n;
-              const tY=[...xs.map(x=>Math.max(0,slope*x+intercept)),Math.max(0,slope*6+intercept)];
+              const tY=[...xs.map(x=>Math.max(0,slope*x+intercept)),Math.max(0,slope*n+intercept)];
               return(
                 <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{display:"block"}}>
                   {meses.map((m,i)=>{
@@ -1927,20 +1901,6 @@ function ProjectionView({ expenses, categories, budgets }) {
               );
             })()}
           </Card>
-          <Card>
-            <SectionLabel>Excluir subcategorías</SectionLabel>
-            <p style={{fontSize:12,color:T.muted,marginBottom:12,textAlign:"center"}}>Quitá gastos extraordinarios que no se van a repetir.</p>
-            {activeCats.map(c=>(
-              <div key={c.id} style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:10}}>
-                <CatIcon icon={c.icon} size={24}/>
-                <div style={{flex:1}}>
-                  <span style={{fontSize:12,fontWeight:600,color:T.text}}>{c.name}</span>
-                  <ExpenseFilter catId={c.id}/>
-                </div>
-                <span style={{fontSize:12,fontWeight:700,color:T.accent,whiteSpace:"nowrap"}}>{fmt(Math.round(monthlyAvgFiltered[c.id]?.avg||0))}/m</span>
-              </div>
-            ))}
-          </Card>
         </div>
       )}
 
@@ -1948,7 +1908,7 @@ function ProjectionView({ expenses, categories, budgets }) {
         <div style={{animation:"fadeSlideUp .3s ease both"}}>
           <Card style={{marginBottom:12}}>
             <SectionLabel>Simulador de reducción</SectionLabel>
-            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Deslizá y excluí subcategorías para simular escenarios.</p>
+            <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Deslizá para simular escenarios y excluí gastos específicos.</p>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
               {[
                 {label:"Promedio actual",val:fmt(Math.round(totalAvg)),color:T.muted,bg:T.bg},
@@ -1968,7 +1928,7 @@ function ProjectionView({ expenses, categories, budgets }) {
                 </span>
               </div>
             )}
-            <button onClick={()=>{setSimChanges({});setExcludedSubs({});setCatMonths({});setExcludedExpIds(new Set());}}
+            <button onClick={()=>{setSimChanges({});setCatMonths({});setExcludedExpIds(new Set());setExpandedCats({});}}
               style={{width:"100%",padding:"7px",borderRadius:8,border:`1px solid ${T.border}`,background:"transparent",color:T.muted,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>
               ↺ Resetear todo
             </button>
@@ -1979,6 +1939,7 @@ function ProjectionView({ expenses, categories, budgets }) {
               const change=simChanges[c.id]||0;
               const simAmt=Math.round(avg*(1+change/100));
               const diff=simAmt-Math.round(avg);
+              const catExps=getCatExps(c.id);
               return(
                 <div key={c.id} style={{padding:"12px 0",borderBottom:`1px solid ${T.border}`}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
@@ -1987,7 +1948,7 @@ function ProjectionView({ expenses, categories, budgets }) {
                       <div style={{display:"flex",justifyContent:"space-between",marginBottom:2,alignItems:"center"}}>
                         <span style={{fontSize:13,fontWeight:600,color:T.text}}>{c.name}</span>
                         <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                          <MonthSelector catId={c.id}/>
+                          <ProjMonthSelector catId={c.id} catMonths={catMonths} defaultMonth={defaultMonth} availableMonths={availableMonths} setCatMonths={setCatMonths}/>
                           <span style={{fontSize:11,color:T.subtle,textDecoration:"line-through"}}>{fmt(Math.round(avg))}</span>
                           <span style={{fontSize:13,fontWeight:700,color:change<0?T.accentMd:change>0?T.warn:T.accent}}>{fmt(simAmt)}</span>
                         </div>
@@ -2003,8 +1964,8 @@ function ProjectionView({ expenses, categories, budgets }) {
                     <span style={{fontSize:9,color:T.warn,minWidth:26,textAlign:"center"}}>+50%</span>
                     <span style={{fontSize:11,fontWeight:700,color:change<0?T.accentMd:change>0?T.warn:T.muted,minWidth:34,textAlign:"right"}}>{change>0?"+":""}{change}%</span>
                   </div>
-                  <MiniBarChart catId={c.id}/>
-                  <ExpenseFilter catId={c.id}/>
+                  <ProjMiniBarChart catId={c.id} catHistory={catHistory}/>
+                  <ProjExpenseFilter catId={c.id} items={catExps} excludedExpIds={excludedExpIds} toggleExp={toggleExp} catMap={catMap} expandedCats={expandedCats} toggleExpanded={toggleExpanded}/>
                 </div>
               );
             })}
@@ -2014,8 +1975,6 @@ function ProjectionView({ expenses, categories, budgets }) {
     </div>
   );
 }
-
-
 function ShoppingList({ categories, onAddExpense }) {
   const [items, setItems] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", qty: 1, price: "" });
