@@ -2253,7 +2253,7 @@ export default function App() {
       {/* Content */}
       <div style={{ padding: "14px 12px 100px 12px", maxWidth: 960, margin: "0 auto" }}>
 
-        {(overBudget || catAlerts.length > 0) && view !== "shopping" && (
+        {(overBudget || catAlerts.length > 0) && (
           <div style={{ background: T.warnLt, border: `1px solid #f5c6c6`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
             <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
             <div style={{ fontSize: 13 }}>
@@ -2268,7 +2268,6 @@ export default function App() {
           </div>
         )}
 
-        {view === "shopping"   && <ShoppingList categories={categories} onAddExpense={addExpense} />}
         {view === "projection" && <ProjectionView expenses={expenses} categories={categories} budgets={budgets} currency={currency} />}
 
         {view === "dashboard" && (
@@ -2468,16 +2467,6 @@ export default function App() {
             </svg>
           </button>
         </div>
-
-        {/* Compras */}
-        <button onClick={() => setView("shopping")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
-          onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
-          onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-          <IconShopping active={view === "shopping"} size={24}/>
-          <span style={{ fontSize: 9, fontWeight: 600, color: view === "shopping" ? T.accent : T.muted, fontFamily: "inherit" }}>Compras</span>
-          {view === "shopping" && <div style={{ width: 4, height: 4, borderRadius: 2, background: T.accent, marginTop: -2 }} />}
-        </button>
-
         {/* Proyección */}
         <button onClick={() => setView("projection")} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "2px 10px", borderRadius: 10, transition: "transform .15s", flex: 1 }}
           onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
