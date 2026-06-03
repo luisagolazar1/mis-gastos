@@ -1782,7 +1782,7 @@ function ProjectionView({ expenses, categories, budgets }) {
       <div style={{display:"flex",gap:6,marginBottom:16}}>
         {[["next","📅 Próximo mes"],["forecast","📈 Proyección"],["sim","🎛️ Simulador"]].map(([k,l])=>(
           <button key={k} onClick={()=>setTab(k)}
-            style={{flex:1,padding:"9px 6px",borderRadius:12,border:`1.5px solid ${tab===k?T.accent:T.border}`,background:tab===k?T.accentLt:"transparent",color:tab===k?T.accent:T.muted,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12}}>
+            style={{flex:1,padding:"9px 6px",borderRadius:12,border:`1.5px solid ${tab===k?T.accent:T.border}`,background:tab===k?T.accentLt:"rgba(255,255,255,0.7)",color:tab===k?T.accent:T.text,cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:12}}>
             {l}
           </button>
         ))}
