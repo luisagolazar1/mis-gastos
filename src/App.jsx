@@ -2235,9 +2235,45 @@ export default function App() {
                   <button key={m} onClick={() => setFilterMode(m)} style={{ background: filterMode === m ? T.accent : "transparent", color: filterMode === m ? "#fff" : T.muted, border: "none", padding: "5px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, fontSize: 12, transition: "background .2s" }}>{l}</button>
                 ))}
               </div>
-              {filterMode === "month" && <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>{months.map(m => <option key={m}>{m}</option>)}</select>}
-              {filterMode === "year"  && <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit" }}>{years.map(y => <option key={y}>{y}</option>)}</select>}
-              {filterMode === "day"   && <input type="date" value={filterDay} onChange={e => setFilterDay(e.target.value)} style={{ marginLeft: 8, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: "5px 10px", color: T.text, fontSize: 12, fontFamily: "inherit", outline: "none" }} />}
+              {filterMode === "month" && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:8 }}>
+                  <button onClick={() => {
+                    const [y,m] = filterMonth.split("-").map(Number);
+                    const d = new Date(y, m-2, 1);
+                    setFilterMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);
+                  }} style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>‹</button>
+                  <span style={{ color:T.text, fontSize:12, fontWeight:600, minWidth:72, textAlign:"center" }}>{filterMonth}</span>
+                  <button onClick={() => {
+                    const [y,m] = filterMonth.split("-").map(Number);
+                    const d = new Date(y, m, 1);
+                    const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+                    if (next <= currentMonth()) setFilterMonth(next);
+                  }} style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>›</button>
+                </div>
+              )}
+              {filterMode === "year" && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:8 }}>
+                  <button onClick={() => setFilterYear(y => String(Number(y)-1))}
+                    style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>‹</button>
+                  <span style={{ color:T.text, fontSize:12, fontWeight:600, minWidth:40, textAlign:"center" }}>{filterYear}</span>
+                  <button onClick={() => setFilterYear(y => String(Math.min(Number(y)+1, new Date().getFullYear())))}
+                    style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>›</button>
+                </div>
+              )}
+              {filterMode === "day" && (
+                <div style={{ display:"flex", alignItems:"center", gap:5, marginLeft:8 }}>
+                  <button onClick={() => {
+                    const d = new Date(filterDay); d.setDate(d.getDate()-1);
+                    setFilterDay(d.toISOString().slice(0,10));
+                  }} style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>‹</button>
+                  <span style={{ color:T.text, fontSize:11, fontWeight:600, minWidth:88, textAlign:"center" }}>{filterDay}</span>
+                  <button onClick={() => {
+                    const d = new Date(filterDay); d.setDate(d.getDate()+1);
+                    const next = d.toISOString().slice(0,10);
+                    if (next <= today()) setFilterDay(next);
+                  }} style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:8, color:T.text, padding:"4px 12px", cursor:"pointer", fontSize:16, fontWeight:700 }}>›</button>
+                </div>
+              )}
               {filterMode === "week"  && (
                 <div style={{ display: "flex", alignItems: "center", gap: 5, marginLeft: 8 }}>
                   <button onClick={() => setWeekOffset(w => w - 1)} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, color: T.muted, padding: "4px 10px", cursor: "pointer", fontSize: 14 }}>‹</button>
