@@ -518,14 +518,14 @@ function CurrencyModal({ currency, onSave, onClose }) {
   );
 }
 
-function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory }) {
+function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory, defaultDate }) {
   const isEdit = !!expense;
   const [form, setForm] = useState({
     amount: expense?.amount ? String(expense.amount) : "",
     catId: expense?.catId || categories[0]?.id || "",
     subCatId: expense?.subCatId || "",
     desc: expense?.desc || "",
-    date: expense?.date || today()
+    date: expense?.date || defaultDate || today()
   });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const [showNewCat, setShowNewCat] = useState(false);
@@ -2461,7 +2461,7 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      {modal === "add"      && <ExpenseModal categories={categories} onSave={addExpense} onClose={() => setModal(null)} onAddCategory={addCategoryInline} />}
+      {modal === "add"      && <ExpenseModal categories={categories} onSave={addExpense} onClose={() => setModal(null)} onAddCategory={addCategoryInline} defaultDate={filterMode === "day" ? filterDay : filterMode === "week" ? weekRange.from : filterMode === "month" ? filterMonth + "-01" : today()} />}
       {modal === "budget"   && <BudgetModal budgets={budgets} categories={categories} expenses={expenses} onSave={saveBudgets} onClose={() => setModal(null)} />}
       {modal === "cats"     && <CatModal categories={categories} onChange={saveCats} onClose={() => setModal(null)} />}
       {modal === "currency" && <CurrencyModal currency={currency} onSave={saveCurrency} onClose={() => setModal(null)} />}
