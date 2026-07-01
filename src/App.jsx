@@ -2310,9 +2310,9 @@ export default function App() {
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 16 }}>
               {[
-                { label: budgetTotal > 0 ? `Gastado ${budgetRange.label}` : "Gastado", val: fmt(budgetTotal > 0 ? budgetSpent : totalMonth), color: T.accent },
+                { label: filterMode === "day" ? "Gastado ese día" : filterMode === "week" ? "Gastado esa semana" : filterMode === "year" ? `Gastado ${filterYear}` : `Gastado ${filterMonth}`, val: fmt(totalMonth), color: T.accent },
                 { label: "Presupuesto", val: budgetTotal > 0 ? fmt(budgetTotal) : "Sin límite", color: T.accent },
-                { label: "Disponible", val: budgetTotal > 0 ? fmt(Math.max(budgetTotal - budgetSpent, 0)) : "—", color: overBudget ? T.warn : T.accentMd },
+                { label: "Disponible", val: budgetTotal > 0 ? fmt(Math.max(budgetTotal - totalMonth, 0)) : "—", color: budgetTotal > 0 && totalMonth > budgetTotal ? T.warn : T.accentMd },
                 { label: "Transacciones", val: monthExp.length, color: T.accent },
               ].map((k, i) => (
                 <div key={i} style={{ background: T.surface, borderRadius: 18, padding: "18px 16px", boxShadow: T.shadow, animation: `fadeSlideUp .45s cubic-bezier(.22,.68,0,1.2) ${i * 80}ms both`, transition: "box-shadow .2s, transform .2s", cursor: "default", textAlign: "center" }}
