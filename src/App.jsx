@@ -784,6 +784,19 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory, def
 function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
   const [vals, setVals] = useState({ ...budgets });
 
+  // Available months from expenses
+  const availableMonths = useMemo(() => {
+    const set = new Set(expenses.map(e => e.date.slice(0,7)));
+    return [...set].sort().reverse();
+  }, [expenses]);
+
+  // Reference month selector (default = last month)
+  const defaultRef = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth()-1, 1).toISOString().slice(0,7);
+  }, []);
+  const [refMonth, setRefMonth] = useState(defaultRef);
+
   // Current period spending
   const currentRange = useMemo(() => getBudgetPeriodRange(vals.__period || "month"), [vals.__period]);
   const currentSpent = useMemo(() => {
@@ -799,59 +812,16 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
     return acc;
   }, [expenses, currentRange]);
 
-  // Calculate previous period range based on selected period
-  const prevPeriod = useMemo(() => {
-    const now = new Date();
-    const period = vals.__period || "month";
-    if (period === "month") {
-      const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const m = now.getMonth() === 0 ? 12 : now.getMonth();
-      const from = `${y}-${String(m).padStart(2,"0")}-01`;
-      const last = new Date(y, m, 0).getDate();
-      const to   = `${y}-${String(m).padStart(2,"0")}-${String(last).padStart(2,"0")}`;
-      return { from, to, label: "mes anterior" };
-    }
-    if (period === "week") {
-      const day = now.getDay() || 7;
-      const lastMon = new Date(now); lastMon.setDate(now.getDate() - day + 1 - 7);
-      const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate() + 6);
-      return { from: lastMon.toISOString().slice(0,10), to: lastSun.toISOString().slice(0,10), label: "semana anterior" };
-    }
-    if (period === "biweekly") {
-      const day = now.getDate();
-      let from, to;
-      if (day <= 15) {
-        // current = 1-15 → prev = 16-last of prev month
-        const pm = now.getMonth() === 0 ? 12 : now.getMonth();
-        const py = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-        const last = new Date(py, pm, 0).getDate();
-        from = `${py}-${String(pm).padStart(2,"0")}-16`;
-        to   = `${py}-${String(pm).padStart(2,"0")}-${String(last).padStart(2,"0")}`;
-      } else {
-        // current = 16-end → prev = 1-15 this month
-        const y2 = now.getFullYear();
-        const m2 = String(now.getMonth() + 1).padStart(2,"0");
-        from = `${y2}-${m2}-01`; to = `${y2}-${m2}-15`;
-      }
-      return { from, to, label: "quincena anterior" };
-    }
-    return null;
-  }, [vals.__period]);
-
-  // Spending per category in previous period
-  const prevSpending = useMemo(() => {
-    if (!prevPeriod || !expenses?.length) return {};
+  // Reference period spending (selected month)
+  const refSpending = useMemo(() => {
+    if (!expenses?.length) return {};
     const acc = {};
-    expenses.forEach(e => {
-      if (e.date >= prevPeriod.from && e.date <= prevPeriod.to) {
-        acc[e.catId] = (acc[e.catId] || 0) + e.amount;
-      }
-    });
+    expenses.filter(e => e.date.startsWith(refMonth))
+      .forEach(e => { acc[e.catId] = (acc[e.catId] || 0) + e.amount; });
     return acc;
-  }, [prevPeriod, expenses]);
+  }, [refMonth, expenses]);
 
-  // Total prev period
-  const prevTotal = useMemo(() => Object.values(prevSpending).reduce((s,v) => s+v, 0), [prevSpending]);
+  const refTotal = useMemo(() => Object.values(refSpending).reduce((s,v) => s+v, 0), [refSpending]);
 
   return (
     <Modal title="Presupuesto" onClose={onClose}>
@@ -868,7 +838,7 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
 
       {/* Current period status */}
       {currentSpent > 0 && (
-        <div style={{ background: T.accentLt, borderRadius: 12, padding: "10px 14px", marginBottom: 16 }}>
+        <div style={{ background: T.accentLt, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16 }}>
           <div style={{ fontSize: 10, color: T.muted, fontWeight: 700, textTransform: "uppercase", marginBottom: 6 }}>Estado actual — {currentRange.label}</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 13, color: T.text }}>Gastado hasta hoy</span>
@@ -890,30 +860,39 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
 
       <AmountInp label="Límite total" value={vals.__total || ""} onChange={v => setVals(vs => ({ ...vs, __total: v }))} placeholder="0,00 (sin límite)" />
 
-      {/* Reference total from previous period */}
-      {prevPeriod && prevTotal > 0 && (
-        <div style={{ background: T.accentLt, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: T.muted }}>💡 Total {prevPeriod.label}</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{fmt(prevTotal)}</span>
+      {/* Reference month selector */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", margin: 0 }}>Por categoría (opcional)</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 10, color: T.subtle }}>Referencia:</span>
+          <select value={refMonth} onChange={e => setRefMonth(e.target.value)}
+            style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "4px 8px", fontSize: 11, color: T.text, fontFamily: "inherit", cursor: "pointer" }}>
+            {availableMonths.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {refTotal > 0 && (
+        <div style={{ background: T.accentLt, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: T.muted }}>💡 Total {refMonth}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: T.accent }}>{fmt(refTotal)}</span>
         </div>
       )}
 
-      <p style={{ fontSize: 11, color: T.muted, fontWeight: 700, letterSpacing: .8, textTransform: "uppercase", marginBottom: 10 }}>Por categoría (opcional)</p>
-
-      {/* Column headers — grid */}
+      {/* Column headers */}
       <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
         <div/>
         <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase" }}>Categoría</span>
         <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Actual</span>
-        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Mes ant.</span>
+        <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>{refMonth}</span>
         <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Límite</span>
       </div>
 
       {categories.map(c => {
-        const prev    = prevSpending[c.id] || 0;
+        const ref     = refSpending[c.id] || 0;
         const current = currentCatSpent[c.id] || 0;
         const limit   = Number(vals[c.id]) || 0;
-        const diff    = limit > 0 ? limit - prev : 0;
+        const diff    = limit > 0 ? limit - ref : 0;
         const overCurrent = limit > 0 && current > limit;
         return (
           <div key={c.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 10 }}>
@@ -926,10 +905,10 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
               {overCurrent && <div style={{ fontSize: 8, color: T.warn }}>⚠️</div>}
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: prev > 0 ? T.text : T.subtle }}>
-                {prev > 0 ? fmt(prev) : "—"}
+              <div style={{ fontSize: 11, fontWeight: 700, color: ref > 0 ? T.text : T.subtle }}>
+                {ref > 0 ? fmt(ref) : "—"}
               </div>
-              {limit > 0 && prev > 0 && (
+              {limit > 0 && ref > 0 && (
                 <div style={{ fontSize: 8, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
                   {diff >= 0 ? `+${fmt(diff)}` : fmt(diff)}
                 </div>
@@ -940,17 +919,16 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
         );
       })}
 
-      {/* ── Subtotal sticky bar ──────────────────────────────────── */}
+      {/* Subtotal sticky */}
       {(() => {
-        const totalLimit  = Number(vals.__total) || 0;
-        const sumCats     = categories.reduce((s, c) => s + (Number(vals[c.id]) || 0), 0);
-        const remaining   = totalLimit > 0 ? totalLimit - sumCats : null;
-        const over        = remaining !== null && remaining < 0;
-        const pct         = totalLimit > 0 ? Math.min(sumCats / totalLimit * 100, 100) : 0;
+        const totalLimit = Number(vals.__total) || 0;
+        const sumCats    = categories.reduce((s, c) => s + (Number(vals[c.id]) || 0), 0);
+        const remaining  = totalLimit > 0 ? totalLimit - sumCats : null;
+        const over       = remaining !== null && remaining < 0;
+        const pct        = totalLimit > 0 ? Math.min(sumCats / totalLimit * 100, 100) : 0;
         if (sumCats === 0) return null;
         return (
           <div style={{ position: "sticky", bottom: 0, background: T.surface, borderTop: `2px solid ${T.border}`, marginTop: 8, paddingTop: 12 }}>
-            {/* Progress bar */}
             {totalLimit > 0 && (
               <div style={{ marginBottom: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: T.muted, marginBottom: 4 }}>
@@ -962,8 +940,7 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
                 </div>
               </div>
             )}
-            {/* Totals row */}
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <div style={{ flex: 1, background: T.accentLt, borderRadius: 10, padding: "8px 12px" }}>
                 <div style={{ fontSize: 10, color: T.muted, marginBottom: 2 }}>Subtotal categorías</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: T.accent }}>{fmt(sumCats)}</div>
