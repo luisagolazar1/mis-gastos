@@ -909,24 +909,24 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose, budgetChe
         const overCurrent = limit > 0 && current > limit;
         const checked = isChecked(c.id);
         return (
-          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "28px 32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, opacity: checked ? 0.35 : 1, transition: "opacity .2s", background: checked ? T.bg : "transparent", borderRadius: 10, padding: checked ? "4px 6px" : "4px 0" }}>
+          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "28px 32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, opacity: checked ? 0.28 : 1, transition: "all .25s", background: checked ? "#c8c8c8" : "transparent", borderRadius: 10, padding: "4px 6px", filter: checked ? "grayscale(1)" : "none" }}>
             {/* Checkbox */}
             <div onClick={() => toggleChecked(c.id)} style={{ cursor: "pointer", width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? T.accent : T.border}`, background: checked ? T.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .15s" }}>
               {checked && <svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
             </div>
             <CatIcon icon={c.icon} size={28}/>
-            <span style={{ color: checked ? T.subtle : T.text, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+            <span style={{ color: T.text, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: checked ? "line-through" : "none" }}>{c.name}</span>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: overCurrent ? T.warn : current > 0 ? T.accent : T.subtle }}>
                 {current > 0 ? fmt(current) : "—"}
               </div>
-              {overCurrent && <div style={{ fontSize: 8, color: T.warn }}>⚠️</div>}
+              {overCurrent && !checked && <div style={{ fontSize: 8, color: T.warn }}>⚠️</div>}
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: ref > 0 ? T.text : T.subtle }}>
                 {ref > 0 ? fmt(ref) : "—"}
               </div>
-              {limit > 0 && ref > 0 && (
+              {!checked && limit > 0 && ref > 0 && (
                 <div style={{ fontSize: 8, color: diff >= 0 ? T.accentMd : T.warn, fontWeight: 600 }}>
                   {diff >= 0 ? `+${fmt(diff)}` : fmt(diff)}
                 </div>
