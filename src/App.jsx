@@ -781,8 +781,20 @@ function ExpenseModal({ expense, categories, onSave, onClose, onAddCategory, def
   );
 }
 
-function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
+function BudgetModal({ budgets, categories, expenses, onSave, onClose, budgetChecked, onSaveChecked }) {
   const [vals, setVals] = useState({ ...budgets });
+
+  // Monthly key for checked state — auto-resets each month
+  const monthKey = currentMonth();
+  const checkedIds = new Set(budgetChecked[monthKey] || []);
+
+  const toggleChecked = (catId) => {
+    const current = new Set(budgetChecked[monthKey] || []);
+    current.has(catId) ? current.delete(catId) : current.add(catId);
+    // Keep only current month (discard old months)
+    onSaveChecked({ [monthKey]: [...current] });
+  };
+  const isChecked = (catId) => checkedIds.has(catId);
 
   // Available months from expenses
   const availableMonths = useMemo(() => {
@@ -880,7 +892,8 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
       )}
 
       {/* Column headers */}
-      <div style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
+      <div style={{ display: "grid", gridTemplateColumns: "28px 32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, paddingBottom: 8, borderBottom: `1px solid ${T.border}` }}>
+        <div/>
         <div/>
         <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textTransform: "uppercase" }}>Categoría</span>
         <span style={{ fontSize: 10, color: T.subtle, fontWeight: 700, textAlign: "center" }}>Actual</span>
@@ -894,10 +907,15 @@ function BudgetModal({ budgets, categories, expenses, onSave, onClose }) {
         const limit   = Number(vals[c.id]) || 0;
         const diff    = limit > 0 ? limit - ref : 0;
         const overCurrent = limit > 0 && current > limit;
+        const checked = isChecked(c.id);
         return (
-          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 10 }}>
+          <div key={c.id} style={{ display: "grid", gridTemplateColumns: "28px 32px 1fr 80px 80px 105px", gap: 4, alignItems: "center", marginBottom: 8, opacity: checked ? 0.35 : 1, transition: "opacity .2s", background: checked ? T.bg : "transparent", borderRadius: 10, padding: checked ? "4px 6px" : "4px 0" }}>
+            {/* Checkbox */}
+            <div onClick={() => toggleChecked(c.id)} style={{ cursor: "pointer", width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? T.accent : T.border}`, background: checked ? T.accent : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .15s" }}>
+              {checked && <svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+            </div>
             <CatIcon icon={c.icon} size={28}/>
-            <span style={{ color: T.text, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+            <span style={{ color: checked ? T.subtle : T.text, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: overCurrent ? T.warn : current > 0 ? T.accent : T.subtle }}>
                 {current > 0 ? fmt(current) : "—"}
@@ -2058,6 +2076,7 @@ export default function App() {
   // Protección: solo permitir guardar categorías DESPUÉS de haber cargado Firebase
   const firebaseLoaded = useRef(false);
   const [budgetHistory, setBudgetHistory] = useState({});
+  const [budgetChecked, setBudgetChecked] = useState({}); // { "2026-07": Set([catId,...]) }
 
   useEffect(() => {
     (async () => {
@@ -2067,10 +2086,16 @@ export default function App() {
         const b = await storage.get("budgets");    if (b) setBudgets(JSON.parse(b.value));
         const cur = await storage.get("currency"); if (cur) { setCurrencyState(cur.value); fmt = makeFmt(cur.value); }
         const bh = await storage.get("budgetHistory"); if (bh) setBudgetHistory(JSON.parse(bh.value));
+        const bc = await storage.get("budgetChecked"); if (bc) setBudgetChecked(JSON.parse(bc.value));
       } catch {}
       firebaseLoaded.current = true;
     })();
   }, []);
+
+  const saveBudgetChecked = (data) => {
+    setBudgetChecked(data);
+    storage.set("budgetChecked", JSON.stringify(data)).catch(() => {});
+  };
 
   const saveCurrency = (code) => { setCurrencyState(code); fmt = makeFmt(code); storage.set("currency", code).catch(() => {}); };
   const saveExpenses = (data) => { setExpenses(data); storage.set("expenses", JSON.stringify(data)).catch(() => {}); };
@@ -2439,7 +2464,7 @@ export default function App() {
 
       {/* Modals */}
       {modal === "add"      && <ExpenseModal categories={categories} onSave={addExpense} onClose={() => setModal(null)} onAddCategory={addCategoryInline} defaultDate={filterMode === "day" ? filterDay : filterMode === "week" ? weekRange.from : filterMode === "month" ? filterMonth + "-01" : today()} />}
-      {modal === "budget"   && <BudgetModal budgets={budgets} categories={categories} expenses={expenses} onSave={saveBudgets} onClose={() => setModal(null)} />}
+      {modal === "budget"   && <BudgetModal budgets={budgets} categories={categories} expenses={expenses} onSave={saveBudgets} onClose={() => setModal(null)} budgetChecked={budgetChecked} onSaveChecked={saveBudgetChecked} />}
       {modal === "cats"     && <CatModal categories={categories} onChange={saveCats} onClose={() => setModal(null)} />}
       {modal === "currency" && <CurrencyModal currency={currency} onSave={saveCurrency} onClose={() => setModal(null)} />}
       {selectedCat          && <CatDetailModal cat={selectedCat} expenses={monthExp} onClose={() => setSelectedCat(null)} />}
