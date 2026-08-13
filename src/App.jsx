@@ -1847,7 +1847,7 @@ function ProjectionView({ expenses, categories, budgets }) {
           <Card style={{marginBottom:12}}>
             <SectionLabel>Proyección acumulada</SectionLabel>
             <p style={{fontSize:12,color:T.muted,marginBottom:14,textAlign:"center"}}>Basado en el mes seleccionado por categoría.</p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:16,maxWidth:480,margin:"0 auto 16px"}}>
               {forecast.map(f=>(
                 <div key={f.months} style={{background:T.bg,borderRadius:14,padding:"14px",border:`1px solid ${T.border}`,textAlign:"center"}}>
                   <div style={{fontSize:11,color:T.muted,marginBottom:6,fontWeight:600}}>{f.months===1?"1 mes":`${f.months} meses`}</div>
