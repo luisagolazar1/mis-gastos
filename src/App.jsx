@@ -2289,7 +2289,28 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: "14px 12px 100px 12px", maxWidth: 960, margin: "0 auto" }}>
+      <div style={{ padding: "14px 12px 100px 12px", maxWidth: 960, margin: "0 auto" }}
+        onTouchStart={e => { window._swipeX = e.touches[0].clientX; }}
+        onTouchEnd={e => {
+          const dx = e.changedTouches[0].clientX - (window._swipeX || 0);
+          if (Math.abs(dx) < 60) return; // ignore small movements
+          const dir = dx < 0 ? 1 : -1; // swipe left = forward, right = backward
+          if (filterMode === "day") {
+            const d = new Date(filterDay); d.setDate(d.getDate() + dir);
+            const next = d.toISOString().slice(0,10);
+            if (next <= today()) setFilterDay(next);
+          } else if (filterMode === "week") {
+            setWeekOffset(w => Math.min(w - dir, 0));
+          } else if (filterMode === "month") {
+            const [y,m] = filterMonth.split("-").map(Number);
+            const d = new Date(y, m - 1 + dir, 1);
+            const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+            if (next <= currentMonth()) setFilterMonth(next);
+          } else if (filterMode === "year") {
+            setFilterYear(y => String(Math.min(Math.max(Number(y) + dir, 2020), new Date().getFullYear())));
+          }
+        }}
+      >
 
         {(overBudget || catAlerts.length > 0) && (
           <div style={{ background: T.warnLt, border: `1px solid #f5c6c6`, borderRadius: 14, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
